@@ -16,6 +16,7 @@ Use it in this order:
 Starting the server before launching the app is recommended so the earliest requests are captured.
 If the app started before the server, start the server and reload the app.
 After startup, the dashboard should show the live app instance in the `Metro / RN Apps` section within a few seconds.
+Only iOS simulators and Android devices visible to `adb` appear in the left-side device list.
 
 ## Install
 
@@ -61,6 +62,15 @@ If `inspectorUrl` is omitted, the client auto-detects the dev host from Metro wh
 Fallback defaults:
 - iOS Simulator: `http://127.0.0.1:5555`
 - Android Emulator: `http://10.0.2.2:5555`
+
+For a physical device, pass your computer's LAN IP explicitly if auto-detection does not resolve correctly:
+
+```js
+installRNNetInspect({
+  inspectorUrl: "http://192.168.1.10:5555",
+  appName: "My RN App",
+});
+```
 
 ## Example
 

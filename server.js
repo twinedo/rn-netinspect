@@ -110,6 +110,24 @@ function parseTargetUrl(input) {
   }
 }
 
+function isInspectorControlRequest(target) {
+  const host = String(target && target.host || '').toLowerCase();
+  const path = String(target && target.path || '');
+  const normalizedHost = host.replace(/:\d+$/, '');
+  const isDashboardHost = (
+    normalizedHost === 'localhost' ||
+    normalizedHost === '127.0.0.1' ||
+    normalizedHost === '0.0.0.0' ||
+    normalizedHost === '::1'
+  );
+  const isControlPath = (
+    path === '/api/health' ||
+    path === '/api/register' ||
+    path === '/api/ingest'
+  );
+  return isDashboardHost && isControlPath;
+}
+
 function registerAppClient(payload, req) {
   const body = toPlainObject(payload);
   const runtimeHost = clampLabel(body.runtimeHost, req && req.socket ? req.socket.remoteAddress || 'unknown' : 'unknown');
@@ -145,6 +163,9 @@ function ingestDirectEvent(payload, req) {
 
   if (phase === 'start') {
     const target = parseTargetUrl(reqData.url || reqData.path || '/');
+    if (isInspectorControlRequest(target)) {
+      return { ok: true, id: null, skipped: true };
+    }
     const entry = {
       id: ++requestIdCounter,
       requestKey,
@@ -871,7 +892,7 @@ body{background:
   <div class="sidebar">
     <div class="sb-divider">
       <div class="sb-head">
-        Devices
+        Simulators / Emulators
         <div class="toggle-wrap" onclick="toggleAuto()">
           <span class="toggle-label">Auto ADB</span>
           <div class="toggle on" id="autoToggle"><div class="toggle-knob"></div></div>
@@ -962,7 +983,7 @@ function connectWS(){
 function renderDevices({devices,rnProcesses}){
   const dl=document.getElementById('deviceList'), rl=document.getElementById('rnList');
   if(!devices||devices.length===0){
-    dl.innerHTML='<div class="empty-sb">No simulators/emulators found.<br>Start one and it will appear here.<button class="scan-btn" onclick="triggerScan()">↺ Scan now</button></div>';
+    dl.innerHTML='<div class="empty-sb">No simulators/emulators found.<br>Physical devices register under Metro / RN Apps.<button class="scan-btn" onclick="triggerScan()">↺ Scan now</button></div>';
   } else {
     dl.innerHTML=devices.map(d=>{
       const icon=d.type==='ios'?'📱':'🤖';
@@ -1237,9 +1258,28 @@ function parseCurlCommand(input){
   try{new URL(targetUrl)}catch{return{error:'Invalid URL in cURL command'}}
   return{parsed:{method,url:targetUrl,headers,body}};
 }
-function curlPreviewMarkup(parsed){
+function buildNormalizedCurlFromParsed(parsed){
+  const parsedUrl=new URL(parsed.url);
+  const defaultPort=String(parsedUrl.protocol==='https:'?443:80);
+  return buildCurlCommand({
+    method:parsed.method,
+    scheme:parsedUrl.protocol.replace(':',''),
+    host:parsedUrl.port&&parsedUrl.port!==defaultPort
+      ? parsedUrl.hostname+':'+parsedUrl.port
+      : parsedUrl.hostname,
+    path:(parsedUrl.pathname||'/')+(parsedUrl.search||''),
+    requestHeaders:parsed.headers,
+    requestBody:parsed.body,
+  });
+}
+function copyNormalizedParsedCurl(id){
+  const st=getCurlState(id);
+  if(!st.parsed)return showToast('Parse a cURL command first');
+  return cpTxt(buildNormalizedCurlFromParsed(st.parsed));
+}
+function curlPreviewMarkup(id,parsed){
   const headerCount=Object.keys(parsed.headers||{}).length;
-  return \`<div class="curl-box"><div class="curl-preview-head"><div class="curl-title">Parsed cURL</div><button class="cbtn" onclick="cpTxt(\\\`\${esc(buildCurlCommand({method:parsed.method,scheme:new URL(parsed.url).protocol.replace(':',''),host:(()=>{const u=new URL(parsed.url);return u.port&&u.port!==String(u.protocol==='https:'?443:80)?u.hostname+':'+u.port:u.hostname})(),path:(()=>{const u=new URL(parsed.url);return (u.pathname||'/')+(u.search||'')})(),requestHeaders:parsed.headers,requestBody:parsed.body})}\\\`)">Copy Normalized</button></div><div class="curl-preview-url"><span class="dm">\${esc(parsed.method)}</span> \${esc(parsed.url)}</div></div>\${hSec('Parsed Headers',parsed.headers)}\${headerCount===0&&parsed.body==null?'<div class="curl-note">No headers or body detected from the pasted command.</div>':''}\${bSec('Parsed Body',parsed.body,parsed.headers)}</div>\`;
+  return \`<div class="curl-box"><div class="curl-preview-head"><div class="curl-title">Parsed cURL</div><button class="cbtn" onclick="copyNormalizedParsedCurl('\${id}')">Copy Normalized</button></div><div class="curl-preview-url"><span class="dm">\${esc(parsed.method)}</span> \${esc(parsed.url)}</div></div>\${hSec('Parsed Headers',parsed.headers)}\${headerCount===0&&parsed.body==null?'<div class="curl-note">No headers or body detected from the pasted command.</div>':''}\${bSec('Parsed Body',parsed.body,parsed.headers)}</div>\`;
 }
 function parseCurlIntoState(id){
   const st=getCurlState(id), res=parseCurlCommand(st.input);
@@ -1266,7 +1306,7 @@ function curlSec(r){
       <div class="curl-note">This parser is intended for common cURL commands like <code>-X</code>, <code>-H</code>, <code>--data</code>, <code>--url</code>, and inline URLs.</div>
     </div>
     \${st.error?\`<div class="curl-err">\${esc(st.error)}</div>\`:''}
-    \${st.parsed?curlPreviewMarkup(st.parsed):''}
+    \${st.parsed?curlPreviewMarkup(key,st.parsed):''}
   </div>\`;
 }
 function copyCurl(id){const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));if(r)cpTxt(buildCurlCommand(r))}
@@ -1410,6 +1450,32 @@ const proxyServer = http.createServer(async (req, res) => {
     duration: null, responseSize: 0, error: null,
     connectTime: 0, waitTime: 0, receiveTime: 0,
   };
+  if (isInspectorControlRequest(entry)) {
+    const reqBuf = await collectBody(req);
+    const isHTTPS = scheme === 'https' || targetPort === 443;
+    const transport = isHTTPS ? https : http;
+    const pReq = transport.request({
+      hostname: targetHost, port: targetPort, path: targetPath,
+      method: req.method, headers: { ...req.headers, host: targetHost },
+      rejectUnauthorized: false,
+    }, (pRes) => {
+      const chunks = [];
+      pRes.on('data', c => chunks.push(c));
+      pRes.on('end', () => {
+        const buf = Buffer.concat(chunks);
+        if (!res.headersSent) { res.writeHead(pRes.statusCode, pRes.headers); res.end(buf); }
+      });
+      pRes.on('error', e => {
+        if (!res.headersSent) { res.writeHead(502); res.end('Bad Gateway'); }
+      });
+    });
+    pReq.on('error', e => {
+      if (!res.headersSent) { res.writeHead(502); res.end('Proxy error: ' + e.message); }
+    });
+    if (reqBuf.length > 0) pReq.write(reqBuf);
+    pReq.end();
+    return;
+  }
   addRequest(entry);
 
   const reqBuf = await collectBody(req);
@@ -1488,7 +1554,7 @@ proxyServer.on('connect', (req, cSocket, head) => {
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-dashboardServer.listen(DASHBOARD_PORT, () => {
+dashboardServer.listen(DASHBOARD_PORT, "0.0.0.0", () => {
   inspectorLog(`Dashboard running at http://localhost:${DASHBOARD_PORT}`);
   inspectorLog(`Device proxy listening on 127.0.0.1:${PROXY_PORT}`);
   inspectorLog('Auto-detecting simulators, emulators, and Metro processes');

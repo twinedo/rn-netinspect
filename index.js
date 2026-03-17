@@ -80,36 +80,63 @@ function makeRequestKey(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function resolveInspectorBaseUrl(explicitUrl) {
-  if (typeof explicitUrl === 'string' && explicitUrl.trim()) {
-    return explicitUrl.replace(/\/+$/, '');
-  }
-
-  const override = global.__RN_INSPECTOR_BASE_URL__;
-  if (typeof override === 'string' && override.trim()) {
-    return override.replace(/\/+$/, '');
-  }
-
-  const scriptURL = ReactNative && ReactNative.NativeModules && ReactNative.NativeModules.SourceCode
-    ? ReactNative.NativeModules.SourceCode.scriptURL
-    : '';
-  if (typeof scriptURL === 'string') {
-    const match = scriptURL.match(/^https?:\/\/([^/:]+)/i);
-    if (match && match[1]) return `http://${match[1]}:5555`;
-  }
-
-  const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS : null;
-  return platform === 'android' ? 'http://10.0.2.2:5555' : 'http://127.0.0.1:5555';
+function normalizeUrlValue(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  return trimmed ? trimmed.replace(/\/+$/, '') : '';
 }
 
-function detectRuntimeHost() {
-  const scriptURL = ReactNative && ReactNative.NativeModules && ReactNative.NativeModules.SourceCode
-    ? ReactNative.NativeModules.SourceCode.scriptURL
-    : '';
-  if (typeof scriptURL === 'string') {
-    const match = scriptURL.match(/^https?:\/\/([^/:]+)/i);
-    if (match && match[1]) return match[1];
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function resolveSourceScriptUrl() {
+  const sourceCode = ReactNative && ReactNative.NativeModules
+    ? ReactNative.NativeModules.SourceCode
+    : null;
+  const candidates = [
+    global.__RN_INSPECTOR_SCRIPT_URL__,
+    sourceCode && sourceCode.scriptURL,
+    sourceCode && sourceCode.bundleURL,
+    global.location && global.location.href,
+  ];
+
+  return candidates.find(value => typeof value === 'string' && /^https?:\/\//i.test(value)) || '';
+}
+
+function extractHostnameFromUrl(value) {
+  try {
+    return new URL(String(value)).hostname || '';
+  } catch {
+    return '';
   }
+}
+
+function resolveInspectorTargets(explicitUrl) {
+  const explicit = normalizeUrlValue(explicitUrl);
+  const override = normalizeUrlValue(global.__RN_INSPECTOR_BASE_URL__);
+  const sourceScriptUrl = resolveSourceScriptUrl();
+  const sourceHost = extractHostnameFromUrl(sourceScriptUrl);
+  const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS : null;
+  const candidates = uniqueValues([
+    explicit,
+    override,
+    sourceHost ? `http://${sourceHost}:5555` : '',
+    platform === 'android' ? 'http://10.0.2.2:5555' : '',
+    'http://127.0.0.1:5555',
+  ]);
+
+  return {
+    candidates,
+    sourceHost,
+    usedFallbackOnly: !explicit && !override && !sourceHost,
+  };
+}
+
+function detectRuntimeHost(sourceHost) {
+  if (sourceHost) return sourceHost;
+  const override = global.__RN_INSPECTOR_RUNTIME_HOST__;
+  if (typeof override === 'string' && override.trim()) return override.trim();
   const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS : null;
   return platform || 'unknown';
 }
@@ -123,52 +150,125 @@ function installRNNetInspect({
 } = {}) {
   if (global.__RN_INSPECTOR_UNINSTALL__) return global.__RN_INSPECTOR_UNINSTALL__;
 
-  const baseUrl = resolveInspectorBaseUrl(inspectorUrl);
-  const ingestUrl = `${baseUrl}/api/ingest`;
-  const healthUrl = `${baseUrl}/api/health`;
-  const registerUrl = `${baseUrl}/api/register`;
   const originalFetch = global.fetch ? global.fetch.bind(global) : null;
   const OriginalXHR = global.XMLHttpRequest;
   const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS || 'unknown' : 'unknown';
-  const runtimeHost = detectRuntimeHost();
+  const { candidates: inspectorBaseUrls, sourceHost, usedFallbackOnly } = resolveInspectorTargets(inspectorUrl);
+  let activeBaseUrl = inspectorBaseUrls[0] || 'http://127.0.0.1:5555';
+  let announcedBaseUrl = '';
+  let didWarnMissingServer = false;
+  let resolveBaseUrlPromise = null;
+  let lastHealthError = '';
+  const runtimeHost = detectRuntimeHost(sourceHost);
   const installId = makeRequestKey('install');
 
-  const isInspectorRequest = target => typeof target === 'string' && target.startsWith(baseUrl);
+  const isInspectorRequest = target => typeof target === 'string' && inspectorBaseUrls.some(baseUrl => target.startsWith(baseUrl));
+
+  const announceBaseUrl = baseUrl => {
+    if (!baseUrl || announcedBaseUrl === baseUrl) return;
+    announcedBaseUrl = baseUrl;
+    inspectorInfo(`Forwarding requests to ${baseUrl}`);
+  };
+
+  const formatError = error => {
+    if (!error) return 'unknown error';
+    if (typeof error === 'string') return error;
+    if (error.message) return error.message;
+    try { return JSON.stringify(error); } catch { return String(error); }
+  };
 
   const warnMissingServer = () => {
+    if (didWarnMissingServer) return;
+    didWarnMissingServer = true;
+    const detail = lastHealthError ? ` Last error: ${lastHealthError}.` : '';
     inspectorWarn(
-      `Server not reachable at ${baseUrl}. ` +
+      `Server not reachable. Tried ${inspectorBaseUrls.join(', ')}.${detail} ` +
       `Start the dashboard/backend before expecting request capture.`
     );
   };
 
-  const checkServer = () => {
-    if (!originalFetch) return Promise.resolve(false);
-    return originalFetch(healthUrl)
-      .then(res => (res && res.ok ? res.json().catch(() => ({})) : Promise.reject(new Error('bad response'))))
-      .then(() => true)
-      .catch(() => {
-        warnMissingServer();
-        return false;
-      });
+  if (usedFallbackOnly) {
+    inspectorWarn(
+      'Metro host could not be detected automatically. ' +
+      'This fallback works for simulators/emulators, but physical devices should pass ' +
+      'inspectorUrl like http://<your-computer-lan-ip>:5555.'
+    );
+  }
+
+  const ensureReachableBaseUrl = () => {
+    if (!originalFetch) {
+      lastHealthError = 'global.fetch is unavailable';
+      return Promise.resolve(null);
+    }
+    if (resolveBaseUrlPromise) return resolveBaseUrlPromise;
+
+    resolveBaseUrlPromise = (async () => {
+      for (const baseUrl of uniqueValues([activeBaseUrl, ...inspectorBaseUrls])) {
+        try {
+          const response = await originalFetch(`${baseUrl}/api/health`, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+          });
+          if (response && response.ok) {
+            activeBaseUrl = baseUrl;
+            didWarnMissingServer = false;
+            lastHealthError = '';
+            announceBaseUrl(baseUrl);
+            return baseUrl;
+          }
+          lastHealthError = `${baseUrl} responded with status ${response ? response.status : 'unknown'}`;
+        } catch (error) {
+          lastHealthError = `${baseUrl} -> ${formatError(error)}`;
+        }
+      }
+      return null;
+    })();
+
+    return resolveBaseUrlPromise.finally(() => {
+      resolveBaseUrlPromise = null;
+    });
   };
 
-  const registerClient = () => {
+  const checkServer = () => {
+    if (!originalFetch) return Promise.resolve(false);
+    return ensureReachableBaseUrl().then(baseUrl => {
+      if (!baseUrl) {
+        warnMissingServer();
+        return false;
+      }
+      return true;
+    });
+  };
+
+  const registerClient = async () => {
     if (!originalFetch) return Promise.resolve();
-    return originalFetch(registerUrl, {
+    const baseUrl = await ensureReachableBaseUrl();
+    if (!baseUrl) {
+      warnMissingServer();
+      return undefined;
+    }
+    return originalFetch(`${baseUrl}/api/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ appName, platform, runtimeHost, installId }),
-    }).catch(() => undefined);
+    }).catch(() => {
+      warnMissingServer();
+      return undefined;
+    });
   };
 
-  const sendEvent = payload => {
+  const sendEvent = async payload => {
     if (!originalFetch) return Promise.resolve();
-    return originalFetch(ingestUrl, {
+    const baseUrl = announcedBaseUrl || await ensureReachableBaseUrl() || activeBaseUrl;
+    if (!baseUrl) return undefined;
+    return originalFetch(`${baseUrl}/api/ingest`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...payload, appName, platform, runtimeHost, installId }),
-    }).catch(() => undefined);
+    }).catch(() => {
+      void ensureReachableBaseUrl();
+      return undefined;
+    });
   };
 
   if (patchFetch && originalFetch) {
@@ -321,7 +421,7 @@ function installRNNetInspect({
   };
 
   global.__RN_INSPECTOR_UNINSTALL__ = uninstall;
-  inspectorInfo(`Forwarding requests to ${baseUrl}`);
+  announceBaseUrl(activeBaseUrl);
   void checkServer();
   void registerClient();
   const heartbeatTimer = typeof setInterval === 'function'
