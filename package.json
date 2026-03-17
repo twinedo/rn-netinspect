@@ -37,6 +37,14 @@
     "react-native": ">=0.72"
   },
   "sideEffects": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/twinedo/rn-netinspect.git"
+  },
+  "homepage": "https://github.com/twinedo/rn-netinspect#readme",
+  "bugs": {
+    "url": "https://github.com/twinedo/rn-netinspect/issues"
+  },
   "license": "MIT",
   "publishConfig": {
     "access": "public"
