@@ -1,0 +1,44 @@
+{
+  "name": "@twinedo/rn-netinspect",
+  "version": "0.2.0",
+  "description": "React Native NetInspect is a React Native Network Inspector for inspecting app network requests.",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "bin": {
+    "rn-netinspect-server": "./bin/rn-netinspect-server.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "bin",
+    "index.js",
+    "server.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "react-native",
+    "rn",
+    "network",
+    "inspector",
+    "proxy",
+    "debugging",
+    "fetch",
+    "xhr",
+    "axios"
+  ],
+  "peerDependencies": {
+    "react-native": ">=0.72"
+  },
+  "sideEffects": true,
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}
