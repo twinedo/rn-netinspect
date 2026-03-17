@@ -5,7 +5,7 @@
   "main": "./index.js",
   "types": "./index.d.ts",
   "bin": {
-    "rn-netinspect-server": "./bin/rn-netinspect-server.js"
+    "rn-netinspect-server": "bin/rn-netinspect-server.js"
   },
   "exports": {
     ".": {
