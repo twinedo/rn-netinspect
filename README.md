@@ -2,6 +2,21 @@
 
 React Native NetInspect is a React Native Network Inspector for inspecting app network requests.
 
+## Quick Start
+
+Use it in this order:
+
+1. Install the package.
+2. Add `installRNNetInspect()` once at app startup inside `if (__DEV__)`.
+3. Start the dashboard/server with `npx rn-netinspect-server`.
+4. Run or reload your React Native app in the simulator, emulator, or device.
+5. Open `http://localhost:5555` on your computer.
+6. Trigger network requests in the app.
+
+Starting the server before launching the app is recommended so the earliest requests are captured.
+If the app started before the server, start the server and reload the app.
+After startup, the dashboard should show the live app instance in the `Metro / RN Apps` section within a few seconds.
+
 ## Install
 
 ```bash
@@ -14,7 +29,7 @@ npm install -D @twinedo/rn-netinspect
 npx rn-netinspect-server
 ```
 
-Then open `http://localhost:5555`.
+Then open `http://localhost:5555` on your computer.
 
 ## Use
 
@@ -27,7 +42,7 @@ if (__DEV__) {
 
 Call `installRNNetInspect()` once at app startup in development mode. It patches `fetch` and `XMLHttpRequest`, then forwards request lifecycle events to your React Native NetInspect server.
 
-If the React Native NetInspect server is not running, the client logs a development warning on startup.
+If the React Native NetInspect server is not running, the client logs a development warning on startup. Requests made before the server is available are not captured, so reload the app after starting the server if needed.
 
 ## Options
 

@@ -58,6 +58,8 @@ const requests = [];
 const MAX_REQUESTS = 500;
 let requestIdCounter = 0;
 const directRequestIds = new Map();
+const connectedApps = new Map();
+const APP_STALE_MS = 20000;
 
 function addRequest(entry) {
   requests.unshift(entry);
@@ -89,6 +91,11 @@ function clampText(value, max = 50000) {
   return text.slice(0, max) + '\n…[truncated]';
 }
 
+function clampLabel(value, fallback) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text ? text.slice(0, 80) : fallback;
+}
+
 function parseTargetUrl(input) {
   try {
     const parsed = new URL(String(input));
@@ -103,7 +110,25 @@ function parseTargetUrl(input) {
   }
 }
 
-function ingestDirectEvent(payload) {
+function registerAppClient(payload, req) {
+  const body = toPlainObject(payload);
+  const runtimeHost = clampLabel(body.runtimeHost, req && req.socket ? req.socket.remoteAddress || 'unknown' : 'unknown');
+  const platform = clampLabel(body.platform, 'unknown');
+  const appName = clampLabel(body.appName, 'React Native');
+  const installId = clampLabel(body.installId, `${appName}-${platform}-${runtimeHost}`);
+  const id = `${installId}@${runtimeHost}`;
+  connectedApps.set(id, {
+    id,
+    installId,
+    appName,
+    platform,
+    runtimeHost,
+    lastSeen: Date.now(),
+  });
+  return connectedApps.get(id);
+}
+
+function ingestDirectEvent(payload, req) {
   const phase = payload && payload.phase;
   const requestKey = payload && payload.requestKey;
   if (!requestKey) return { ok: false, error: 'requestKey is required' };
@@ -111,6 +136,12 @@ function ingestDirectEvent(payload) {
   const reqData = toPlainObject(payload.request);
   const resData = toPlainObject(payload.response);
   const timing = toPlainObject(payload.timing);
+  registerAppClient({
+    installId: payload && payload.installId,
+    appName: reqData.appName || payload.appName,
+    platform: payload && payload.platform,
+    runtimeHost: payload && payload.runtimeHost,
+  }, req);
 
   if (phase === 'start') {
     const target = parseTargetUrl(reqData.url || reqData.path || '/');
@@ -182,8 +213,28 @@ let devices     = [];
 let rnProcesses = [];
 let autoConnectEnabled = true;
 
+function pruneConnectedApps() {
+  const now = Date.now();
+  for (const [id, app] of connectedApps.entries()) {
+    if (!app || now - app.lastSeen > APP_STALE_MS) connectedApps.delete(id);
+  }
+}
+
+function listConnectedApps() {
+  pruneConnectedApps();
+  return [...connectedApps.values()]
+    .sort((a, b) => b.lastSeen - a.lastSeen)
+    .map(app => ({
+      port: null,
+      name: 'app',
+      pid: app.id,
+      label: `${app.appName}  ${app.platform}  ${app.runtimeHost}`,
+    }));
+}
+
 function broadcastDevices() {
-  broadcastWS({ type: 'devices', data: { devices, rnProcesses } });
+  pruneConnectedApps();
+  broadcastWS({ type: 'devices', data: { devices, rnProcesses: [...listConnectedApps(), ...rnProcesses] } });
 }
 
 // ─── Shell helper ─────────────────────────────────────────────────────────────
@@ -535,7 +586,7 @@ function upgradeToWS(req, socket) {
   socket.on('close', () => wsClients.delete(socket));
   wsClients.add(socket);
   sendWS(socket, { type: 'init',    data: requests.slice(0, 100) });
-  sendWS(socket, { type: 'devices', data: { devices, rnProcesses } });
+  sendWS(socket, { type: 'devices', data: { devices, rnProcesses: [...listConnectedApps(), ...rnProcesses] } });
 }
 
 function encodeWS(data) {
@@ -831,7 +882,7 @@ body{background:
       </div>
     </div>
     <div>
-      <div class="sb-head">Metro / RN</div>
+      <div class="sb-head">Metro / RN Apps</div>
       <div class="rn-list" id="rnList">
         <div class="empty-sb" style="padding:8px 10px">No processes found</div>
       </div>
@@ -933,7 +984,7 @@ function renderDevices({devices,rnProcesses}){
     }).join('');
   }
   if(!rnProcesses||rnProcesses.length===0){
-    rl.innerHTML='<div class="empty-sb" style="padding:6px 8px">No Metro / RN processes</div>';
+    rl.innerHTML='<div class="empty-sb" style="padding:6px 8px">No Metro or app clients</div>';
   } else {
     rl.innerHTML=rnProcesses.map(p=>\`<div class="rn-item"><div class="rn-dot"></div><div class="rn-lbl" title="\${esc(p.label)}">\${esc(p.label)}</div></div>\`).join('');
   }
@@ -1281,6 +1332,13 @@ const dashboardServer = http.createServer(async (req, res) => {
       timestamp: Date.now(),
     })); return;
   }
+  if (p.pathname === '/api/register' && req.method === 'POST') {
+    const b = await readJSON();
+    const app = registerAppClient(b, req);
+    broadcastDevices();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, app, ttlMs: APP_STALE_MS })); return;
+  }
   if (p.pathname === '/api/device' && req.method === 'POST') {
     const b = await readJSON();
     const result = await handleDeviceAction(b.action, b.deviceId);
@@ -1289,7 +1347,7 @@ const dashboardServer = http.createServer(async (req, res) => {
   }
   if (p.pathname === '/api/ingest' && req.method === 'POST') {
     const b = await readJSON();
-    const result = ingestDirectEvent(b);
+    const result = ingestDirectEvent(b, req);
     res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result)); return;
   }

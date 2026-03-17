@@ -102,6 +102,18 @@ function resolveInspectorBaseUrl(explicitUrl) {
   return platform === 'android' ? 'http://10.0.2.2:5555' : 'http://127.0.0.1:5555';
 }
 
+function detectRuntimeHost() {
+  const scriptURL = ReactNative && ReactNative.NativeModules && ReactNative.NativeModules.SourceCode
+    ? ReactNative.NativeModules.SourceCode.scriptURL
+    : '';
+  if (typeof scriptURL === 'string') {
+    const match = scriptURL.match(/^https?:\/\/([^/:]+)/i);
+    if (match && match[1]) return match[1];
+  }
+  const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS : null;
+  return platform || 'unknown';
+}
+
 function installRNNetInspect({
   inspectorUrl,
   appName = 'React Native',
@@ -114,8 +126,12 @@ function installRNNetInspect({
   const baseUrl = resolveInspectorBaseUrl(inspectorUrl);
   const ingestUrl = `${baseUrl}/api/ingest`;
   const healthUrl = `${baseUrl}/api/health`;
+  const registerUrl = `${baseUrl}/api/register`;
   const originalFetch = global.fetch ? global.fetch.bind(global) : null;
   const OriginalXHR = global.XMLHttpRequest;
+  const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS || 'unknown' : 'unknown';
+  const runtimeHost = detectRuntimeHost();
+  const installId = makeRequestKey('install');
 
   const isInspectorRequest = target => typeof target === 'string' && target.startsWith(baseUrl);
 
@@ -137,12 +153,21 @@ function installRNNetInspect({
       });
   };
 
+  const registerClient = () => {
+    if (!originalFetch) return Promise.resolve();
+    return originalFetch(registerUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appName, platform, runtimeHost, installId }),
+    }).catch(() => undefined);
+  };
+
   const sendEvent = payload => {
     if (!originalFetch) return Promise.resolve();
     return originalFetch(ingestUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, appName, platform, runtimeHost, installId }),
     }).catch(() => undefined);
   };
 
@@ -289,6 +314,7 @@ function installRNNetInspect({
   }
 
   const uninstall = () => {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     if (originalFetch) global.fetch = originalFetch;
     if (OriginalXHR) global.XMLHttpRequest = OriginalXHR;
     delete global.__RN_INSPECTOR_UNINSTALL__;
@@ -297,6 +323,10 @@ function installRNNetInspect({
   global.__RN_INSPECTOR_UNINSTALL__ = uninstall;
   inspectorInfo(`Forwarding requests to ${baseUrl}`);
   void checkServer();
+  void registerClient();
+  const heartbeatTimer = typeof setInterval === 'function'
+    ? setInterval(() => { void registerClient(); }, 10000)
+    : null;
   return uninstall;
 }
 
