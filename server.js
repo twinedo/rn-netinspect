@@ -675,6 +675,12 @@ body{background:
 .m-PATCH{background:rgba(187,134,252,.12);color:var(--purple)}
 .m-DELETE{background:rgba(255,68,68,.12);color:var(--red)}
 .m-OTHER,.m-HEAD,.m-OPTIONS,.m-CONNECT{background:rgba(255,255,255,.06);color:var(--text2)}
+.tfill.GET{background:var(--green)}
+.tfill.POST{background:var(--accent)}
+.tfill.PUT{background:var(--orange)}
+.tfill.PATCH{background:var(--purple)}
+.tfill.DELETE{background:var(--red)}
+.tfill.OTHER,.tfill.HEAD,.tfill.OPTIONS,.tfill.CONNECT{background:var(--text2)}
 .req-info{flex:1;overflow:hidden;min-width:0}
 .rurl{font-family:var(--mono);font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.45}
 .rmeta{display:flex;gap:7px;margin-top:2px;align-items:center}
@@ -710,6 +716,8 @@ body{background:
 .dh{padding:16px 18px 14px;border-bottom:1px solid var(--border);background:rgba(30,38,48,.92);flex-shrink:0}
 .durl{font-family:var(--mono);font-size:13px;color:var(--text);word-break:break-all;line-height:1.6;margin-bottom:10px}
 .durl .dm{color:var(--accent);font-weight:700;margin-right:5px}
+.dh-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.dh-actions .cbtn{margin-left:0}
 .dstats{display:flex;gap:14px;flex-wrap:wrap}
 .stat{display:flex;flex-direction:column;gap:2px}
 .stat-l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px}
@@ -747,6 +755,16 @@ body{background:
 .bpre::-webkit-scrollbar{width:3px;height:3px}.bpre::-webkit-scrollbar-thumb{background:var(--border2)}
 .jk{color:#7ecfff}.js{color:#98e4a0}.jn{color:#ffb86c}.jb{color:#ff79c6}.jnull{color:#6272a4}
 .no-body{font-family:var(--mono);font-size:12px;color:var(--text3);padding:16px 14px;text-align:center}
+.curl-tools{padding:14px;display:flex;flex-direction:column;gap:14px}
+.curl-box{background:rgba(30,38,48,.92);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.curl-title{font-family:var(--mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);margin-bottom:10px}
+.curl-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.curl-textarea{width:100%;min-height:160px;resize:vertical;background:rgba(22,27,34,.92);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.7;padding:12px 14px;outline:none}
+.curl-textarea:focus{border-color:var(--accent)}
+.curl-note{font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7}
+.curl-preview-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.curl-preview-url{font-family:var(--mono);font-size:12px;color:var(--text);word-break:break-all;line-height:1.7}
+.curl-err{font-family:var(--mono);font-size:12px;color:var(--red);background:rgba(255,68,68,.08);border:1px solid rgba(255,68,68,.2);border-radius:8px;padding:12px 14px}
 .ptable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
 .ptable tr{border-bottom:1px solid var(--border)}.ptable tr:last-child{border-bottom:none}
 .ptable tr:hover td{background:var(--bg3)}.ptable td{padding:8px 14px}
@@ -858,7 +876,7 @@ body{background:
 <div class="toast" id="toast"></div>
 
 <script>
-let allReqs=[], selId=null, activeM='ALL', searchQ='', paused=false, tabState={}, autoOn=true, ws, maxT=1;
+let allReqs=[], selId=null, activeM='ALL', searchQ='', paused=false, tabState={}, curlState={}, autoOn=true, ws, maxT=1;
 const COMPACT_BREAKPOINT=1180;
 
 function normReqId(id){return String(id)}
@@ -964,13 +982,14 @@ function ihtml(r,isNew){
   const dur=r.duration?(r.duration<1000?r.duration+'ms':(r.duration/1000).toFixed(2)+'s'):'';
   const bp=r.duration?Math.max(3,(r.duration/maxT)*100):0;
   const isErr=r.error||(r.status&&r.status>=400);
-  const sourceTag=r.source==='rn-direct'?'<span class="rsrc">RN</span>':'';
+  const sourceTag=r.source==='rn-direct'?'<span class="rsrc">RN</span>':r.source==='curl-import'?'<span class="rsrc">cURL</span>':'';
+  const methodKey=['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS','CONNECT'].includes(r.method)?r.method:'OTHER';
   return \`<div class="req-item \${normReqId(selId)===normReqId(r.id)?'active':''} \${isErr?'is-err':''} \${isNew?'new-in':''}" data-id="\${r.id}" onclick="selReq('\${r.id}')">
     <span class="mtag \${mc}">\${r.method}</span>
     <div class="req-info">
       <div class="rurl">\${esc(path)}</div>
       <div class="rmeta">\${sourceTag}<span class="rhost">\${esc(host)}</span>\${dur?\`<span class="rdur">\${dur}</span>\`:''}</div>
-      \${bp?\`<div class="tbar"><div class="tfill" style="width:\${bp}%"></div></div>\`:''}
+      \${bp?\`<div class="tbar"><div class="tfill \${methodKey}" style="width:\${bp}%"></div></div>\`:''}
     </div>
     <span class="spill \${sc}">\${st}</span>
   </div>\`;
@@ -994,11 +1013,20 @@ function selReq(id){
 function renderDetail(r){
   const tab=tabState[normReqId(r.id)]||'request';
   const fullUrl=(r.scheme||'http')+'://'+(r.host||'')+(r.path||'');
+  const authHeader=getHeaderValue(r.requestHeaders,'authorization');
   const sc=r.error?'err':!r.status?'':r.status<300?'ok':r.status<500?'warn':'err';
   const dur=r.duration?(r.duration<1000?r.duration+' ms':(r.duration/1000).toFixed(2)+'s'):'—';
   const size=r.responseSize?fmtB(r.responseSize):'—';
   const rqH=Object.keys(r.requestHeaders||{}).length, rsH=Object.keys(r.responseHeaders||{}).length;
-  const sourceLabel=r.source==='rn-direct'?(r.transport==='xhr'?'RN XHR':'RN Fetch'):'Proxy';
+  const sourceLabel=r.source==='rn-direct'?(r.transport==='xhr'?'RN XHR':'RN Fetch'):r.source==='curl-import'?'cURL':'Proxy';
+  const tabs=[
+    {key:'request',label:'Request',badge:rqH},
+    {key:'response',label:'Response',badge:rsH},
+    {key:'params',label:'Params'},
+    {key:'timing',label:'Timing'},
+    {key:'raw',label:'Raw'},
+    {key:'curl',label:'cURL'},
+  ];
   document.getElementById('detail').innerHTML=\`
     <div class="detail-mobilebar">
       <button class="back-btn" onclick="closeDetailPane()">← Back</button>
@@ -1006,6 +1034,10 @@ function renderDetail(r){
     </div>
     <div class="dh">
       <div class="durl"><span class="dm">\${r.method}</span>\${esc(fullUrl)}</div>
+      <div class="dh-actions">
+        <button class="cbtn" onclick="cpTxt(\\\`\${esc(fullUrl)}\\\`)">Copy URL</button>
+        \${authHeader?\`<button class="cbtn" onclick="copyAuth('\${r.id}')">Copy Auth</button>\`:''}
+      </div>
       <div class="dstats">
         <div class="stat"><div class="stat-l">Status</div><div class="stat-v \${sc}">\${r.error?'Error':r.status||'Pending'}</div></div>
         <div class="stat"><div class="stat-l">Duration</div><div class="stat-v">\${dur}</div></div>
@@ -1016,13 +1048,14 @@ function renderDetail(r){
       </div>
     </div>
     <div class="tabs">
-      \${['request','response','params','timing','raw'].map(t=>\`<div class="tab \${tab===t?'active':''}" onclick="setT('\${r.id}','\${t}')">\${t.charAt(0).toUpperCase()+t.slice(1)}\${t==='request'?\`<span class="tb">\${rqH}</span>\`:t==='response'?\`<span class="tb">\${rsH}</span>\`:''}</div>\`).join('')}
+      \${tabs.map(t=>\`<div class="tab \${tab===t.key?'active':''}" onclick="setT('\${r.id}','\${t.key}')">\${t.label}\${t.badge!=null?\`<span class="tb">\${t.badge}</span>\`:''}</div>\`).join('')}
     </div>
     <div class="tc \${tab==='request'?'active':''}">\${hSec('Request Headers',r.requestHeaders)}\${bSec('Request Body',r.requestBody,r.requestHeaders)}</div>
     <div class="tc \${tab==='response'?'active':''}">\${hSec('Response Headers',r.responseHeaders)}\${bSec('Response Body',r.responseBody,r.responseHeaders)}</div>
     <div class="tc \${tab==='params'?'active':''}">\${pSec(r.path)}</div>
     <div class="tc \${tab==='timing'?'active':''}">\${tSec(r)}</div>
     <div class="tc \${tab==='raw'?'active':''}">\${rawSec(r)}</div>
+    <div class="tc \${tab==='curl'?'active':''}">\${curlSec(r)}</div>
   \`;
 }
 function setT(id,t){tabState[normReqId(id)]=t;const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));if(r)renderDetail(r)}
@@ -1068,6 +1101,133 @@ function rawSec(r){
   const rawRs=\`\${rsL}\\n\${rsH}\${rsB}\`;
   return\`<div class="bv"><div class="btbar"><span class="btype">RAW REQUEST</span><button class="cbtn" onclick="cpTxt(\\\`\${esc(rawRq)}\\\`)">Copy</button></div><pre class="bpre">\${esc(rawRq)}</pre></div>
     <div class="bv" style="border-top:1px solid var(--border)"><div class="btbar"><span class="btype">RAW RESPONSE</span><button class="cbtn" onclick="cpTxt(\\\`\${esc(rawRs)}\\\`)">Copy</button></div><pre class="bpre">\${esc(rawRs)}</pre></div>\`;
+}
+function shellQuote(v){return "'" + String(v==null?'':v).replace(/'/g,"'\\''") + "'"}
+function bodyText(v){return typeof v==='string'?v:JSON.stringify(v,null,2)}
+function buildCurlCommand(r){
+  const flags=[];
+  const fullUrl=(r.scheme||'http')+'://'+(r.host||'')+(r.path||'');
+  const method=String(r.method||'GET').toUpperCase();
+  if(method!=='GET')flags.push('-X '+method);
+  for(const [k,v] of Object.entries(r.requestHeaders||{})){
+    const nk=String(k).toLowerCase();
+    if(['host','content-length','proxy-connection'].includes(nk))continue;
+    flags.push('-H '+shellQuote(k+': '+String(v)));
+  }
+  if(r.requestBody!=null&&method!=='GET'&&method!=='HEAD')flags.push('--data-raw '+shellQuote(bodyText(r.requestBody)));
+  flags.push(shellQuote(fullUrl));
+  if(flags.length===1)return 'curl '+flags[0];
+  return ['curl \\\\',...flags.slice(0,-1).map(f=>'  '+f+' \\\\'),'  '+flags[flags.length-1]].join('\\n');
+}
+function getCurlState(id){
+  const key=normReqId(id);
+  if(!curlState[key])curlState[key]={input:'',parsed:null,error:''};
+  return curlState[key];
+}
+function setCurlInput(id,v){getCurlState(id).input=v}
+async function pasteCurl(id){
+  try{
+    const text=await navigator.clipboard.readText();
+    const key=normReqId(id), st=getCurlState(key), el=document.getElementById('curlInput-'+key);
+    st.input=text;
+    if(el)el.value=text;
+    showToast('cURL pasted');
+  }catch{showToast('Clipboard read blocked')}
+}
+function splitShellArgs(input){
+  const src=String(input||'').replace(/\\\\\\r?\\n/g,' ').trim();
+  const out=[];let cur='',quote='',escm=false;
+  for(let i=0;i<src.length;i++){
+    const ch=src[i];
+    if(escm){cur+=ch;escm=false;continue}
+    if(quote==="'" ){if(ch===quote)quote='';else cur+=ch;continue}
+    if(quote==='"'){if(ch==='\\\\'){escm=true;continue}if(ch===quote)quote='';else cur+=ch;continue}
+    if(ch==='\\\\'){escm=true;continue}
+    if(ch==="'"||ch==='"'){quote=ch;continue}
+    if(/\\s/.test(ch)){if(cur){out.push(cur);cur=''}continue}
+    cur+=ch;
+  }
+  if(escm)cur+='\\\\';
+  if(quote)return{error:'Unclosed quote in cURL command'};
+  if(cur)out.push(cur);
+  return{tokens:out};
+}
+function parseCurlCommand(input){
+  const split=splitShellArgs(input);
+  if(split.error)return{error:split.error};
+  const tokens=split.tokens||[];
+  if(tokens.length===0)return{error:'Paste a cURL command first'};
+  if(tokens[0]!=='curl')return{error:'Command must start with curl'};
+  let method='',targetUrl='',body=null,user=null,headOnly=false;
+  const headers={};const bodies=[];
+  for(let i=1;i<tokens.length;i++){
+    const t=tokens[i];
+    const next=()=>tokens[++i]||'';
+    if(t==='-X'||t==='--request'){method=String(next()||'GET').toUpperCase();continue}
+    if(t==='-H'||t==='--header'){
+      const raw=next();const idx=raw.indexOf(':');
+      if(idx===-1)return{error:'Invalid header: '+raw};
+      headers[raw.slice(0,idx).trim()]=raw.slice(idx+1).trim();
+      continue
+    }
+    if(['-d','--data','--data-raw','--data-binary','--data-ascii','--data-urlencode'].includes(t)){bodies.push(next());continue}
+    if(t==='--url'){targetUrl=next();continue}
+    if(t==='-u'||t==='--user'){user=next();continue}
+    if(t==='-A'||t==='--user-agent'){headers['User-Agent']=next();continue}
+    if(t==='-I'||t==='--head'){headOnly=true;continue}
+    if(t==='-k'||t==='--insecure'||t==='-L'||t==='--location'||t==='-s'||t==='--silent'||t==='--compressed'||t==='-i'||t==='--include')continue
+    if(/^https?:\\/\\//i.test(t)&&!targetUrl){targetUrl=t;continue}
+  }
+  if(headOnly)method='HEAD';
+  if(bodies.length>0){body=bodies.join('&');if(!method)method='POST'}
+  if(!method)method='GET';
+  if(user&&!headers.Authorization)headers.Authorization='Basic '+btoa(user);
+  if(!targetUrl)return{error:'No URL found in cURL command'};
+  try{new URL(targetUrl)}catch{return{error:'Invalid URL in cURL command'}}
+  return{parsed:{method,url:targetUrl,headers,body}};
+}
+function curlPreviewMarkup(parsed){
+  const headerCount=Object.keys(parsed.headers||{}).length;
+  return \`<div class="curl-box"><div class="curl-preview-head"><div class="curl-title">Parsed cURL</div><button class="cbtn" onclick="cpTxt(\\\`\${esc(buildCurlCommand({method:parsed.method,scheme:new URL(parsed.url).protocol.replace(':',''),host:(()=>{const u=new URL(parsed.url);return u.port&&u.port!==String(u.protocol==='https:'?443:80)?u.hostname+':'+u.port:u.hostname})(),path:(()=>{const u=new URL(parsed.url);return (u.pathname||'/')+(u.search||'')})(),requestHeaders:parsed.headers,requestBody:parsed.body})}\\\`)">Copy Normalized</button></div><div class="curl-preview-url"><span class="dm">\${esc(parsed.method)}</span> \${esc(parsed.url)}</div></div>\${hSec('Parsed Headers',parsed.headers)}\${headerCount===0&&parsed.body==null?'<div class="curl-note">No headers or body detected from the pasted command.</div>':''}\${bSec('Parsed Body',parsed.body,parsed.headers)}</div>\`;
+}
+function parseCurlIntoState(id){
+  const st=getCurlState(id), res=parseCurlCommand(st.input);
+  if(res.error){st.error=res.error;st.parsed=null}else{st.error='';st.parsed=res.parsed}
+  const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));if(r)renderDetail(r)
+}
+function curlSec(r){
+  const key=normReqId(r.id), st=getCurlState(key), cmd=buildCurlCommand(r);
+  return \`<div class="curl-tools">
+    <div class="curl-box">
+      <div class="curl-title">Generated cURL</div>
+      <div class="curl-actions">
+        <button class="cbtn" onclick="copyCurl('\${key}')">Copy cURL</button>
+      </div>
+      <pre class="bpre" id="curlCmd-\${key}">\${esc(cmd)}</pre>
+    </div>
+    <div class="curl-box">
+      <div class="curl-title">Paste cURL</div>
+      <div class="curl-actions">
+        <button class="cbtn" onclick="pasteCurl('\${key}')">Paste From Clipboard</button>
+        <button class="cbtn" onclick="parseCurlIntoState('\${key}')">Parse cURL</button>
+      </div>
+      <textarea class="curl-textarea" id="curlInput-\${key}" placeholder="Paste a curl command here to inspect its method, URL, headers, and body" oninput="setCurlInput('\${key}',this.value)">\${esc(st.input||'')}</textarea>
+      <div class="curl-note">This parser is intended for common cURL commands like <code>-X</code>, <code>-H</code>, <code>--data</code>, <code>--url</code>, and inline URLs.</div>
+    </div>
+    \${st.error?\`<div class="curl-err">\${esc(st.error)}</div>\`:''}
+    \${st.parsed?curlPreviewMarkup(st.parsed):''}
+  </div>\`;
+}
+function copyCurl(id){const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));if(r)cpTxt(buildCurlCommand(r))}
+function getHeaderValue(headers,name){
+  for(const [k,v] of Object.entries(headers||{})){if(String(k).toLowerCase()===String(name).toLowerCase())return v}
+  return ''
+}
+function copyAuth(id){
+  const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));
+  const auth=r?getHeaderValue(r.requestHeaders,'authorization'):'';
+  if(auth)return cpTxt(String(auth));
+  showToast('Authorization header not found');
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\`/g,'&#96;')}
 function fmtB(b){if(!b)return'0 B';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(2)+' MB'}
