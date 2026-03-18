@@ -111,15 +111,33 @@ function parseTargetUrl(input) {
   }
 }
 
+function splitHostAndPort(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  const bracketed = raw.match(/^\[([^\]]+)\](?::(\d+))?$/);
+  if (bracketed) {
+    return {
+      host: bracketed[1],
+      port: bracketed[2] ? parseInt(bracketed[2], 10) : null,
+    };
+  }
+
+  const colonCount = (raw.match(/:/g) || []).length;
+  if (colonCount > 1) return { host: raw, port: null };
+
+  const match = raw.match(/^(.*?)(?::(\d+))?$/);
+  return {
+    host: match && match[1] ? match[1] : raw,
+    port: match && match[2] ? parseInt(match[2], 10) : null,
+  };
+}
+
 function isInspectorControlRequest(target) {
-  const host = String(target && target.host || '').toLowerCase();
+  const rawHost = String(target && target.host || '').toLowerCase();
   const path = String(target && target.path || '');
-  const normalizedHost = host.replace(/:\d+$/, '');
+  const { host: normalizedHost, port } = splitHostAndPort(rawHost);
   const isDashboardHost = (
-    normalizedHost === 'localhost' ||
-    normalizedHost === '127.0.0.1' ||
-    normalizedHost === '0.0.0.0' ||
-    normalizedHost === '::1'
+    INSPECTOR_HOSTS.has(normalizedHost) &&
+    (port == null || port === DASHBOARD_PORT)
   );
   const isControlPath = (
     path === '/api/health' ||
@@ -127,6 +145,19 @@ function isInspectorControlRequest(target) {
     path === '/api/ingest'
   );
   return isDashboardHost && isControlPath;
+}
+
+function isMetroAssetNoiseRequest(target) {
+  const rawHost = String(target && target.host || '').toLowerCase();
+  const path = String(target && target.path || '');
+  const { host: normalizedHost } = splitHostAndPort(rawHost);
+  const isLocalDevHost = INSPECTOR_HOSTS.has(normalizedHost);
+  const isMetroAssetPath = /^\/assets\/?\?(?:.*&)?unstable_path=/i.test(path);
+  return isLocalDevHost && isMetroAssetPath;
+}
+
+function shouldIgnoreCapturedRequest(target) {
+  return isInspectorControlRequest(target) || isMetroAssetNoiseRequest(target);
 }
 
 function registerAppClient(payload, req) {
@@ -164,7 +195,7 @@ function ingestDirectEvent(payload, req) {
 
   if (phase === 'start') {
     const target = parseTargetUrl(reqData.url || reqData.path || '/');
-    if (isInspectorControlRequest(target)) {
+    if (shouldIgnoreCapturedRequest(target)) {
       return { ok: true, id: null, skipped: true };
     }
     const entry = {
@@ -285,6 +316,24 @@ function getLocalLanUrls(port = DASHBOARD_PORT) {
   }
   return [...urls].sort();
 }
+
+function getInspectorHosts() {
+  const interfaces = typeof os.networkInterfaces === 'function' ? os.networkInterfaces() : {};
+  const hosts = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+
+  for (const addresses of Object.values(interfaces)) {
+    for (const address of addresses || []) {
+      if (!address || !address.address) continue;
+      hosts.add(String(address.address).toLowerCase());
+    }
+  }
+
+  const hostname = typeof os.hostname === 'function' ? os.hostname() : '';
+  if (hostname) hosts.add(String(hostname).toLowerCase());
+  return hosts;
+}
+
+const INSPECTOR_HOSTS = getInspectorHosts();
 
 // ─── iOS detection ────────────────────────────────────────────────────────────
 async function detectiOSSimulators() {
@@ -1550,7 +1599,7 @@ const proxyServer = http.createServer(async (req, res) => {
     duration: null, responseSize: 0, error: null,
     connectTime: 0, waitTime: 0, receiveTime: 0,
   };
-  if (isInspectorControlRequest(entry)) {
+  if (shouldIgnoreCapturedRequest(entry)) {
     const reqBuf = await collectBody(req);
     const isHTTPS = scheme === 'https' || targetPort === 443;
     const transport = isHTTPS ? https : http;
