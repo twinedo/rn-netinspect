@@ -11,6 +11,8 @@ const ANSI = {
   cyan: '\x1b[96m',
   yellow: '\x1b[93m',
 };
+const DASHBOARD_PORT = 5555;
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
 function supportsColor() {
   if (typeof global !== 'undefined' && global.__RN_INSPECTOR_NO_COLOR__) return false;
@@ -90,6 +92,16 @@ function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function isLoopbackHost(value) {
+  if (typeof value !== 'string') return false;
+  return LOOPBACK_HOSTS.has(value.trim().toLowerCase());
+}
+
+function withDashboardPort(host) {
+  const normalized = typeof host === 'string' ? host.trim() : '';
+  return normalized ? `http://${normalized}:${DASHBOARD_PORT}` : '';
+}
+
 function resolveSourceScriptUrl() {
   const sourceCode = ReactNative && ReactNative.NativeModules
     ? ReactNative.NativeModules.SourceCode
@@ -118,25 +130,31 @@ function resolveInspectorTargets(explicitUrl) {
   const sourceScriptUrl = resolveSourceScriptUrl();
   const sourceHost = extractHostnameFromUrl(sourceScriptUrl);
   const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS : null;
+  const sourceLooksLoopback = isLoopbackHost(sourceHost);
   const candidates = uniqueValues([
     explicit,
     override,
-    sourceHost ? `http://${sourceHost}:5555` : '',
+    !sourceLooksLoopback ? withDashboardPort(sourceHost) : '',
+    platform === 'android' ? 'http://127.0.0.1:5555' : '',
+    sourceLooksLoopback ? 'http://localhost:5555' : '',
     platform === 'android' ? 'http://10.0.2.2:5555' : '',
-    'http://127.0.0.1:5555',
+    platform === 'android' ? 'http://10.0.3.2:5555' : '',
+    platform !== 'android' ? 'http://127.0.0.1:5555' : '',
+    platform !== 'android' ? 'http://localhost:5555' : '',
   ]);
 
   return {
     candidates,
     sourceHost,
+    sourceLooksLoopback,
     usedFallbackOnly: !explicit && !override && !sourceHost,
   };
 }
 
 function detectRuntimeHost(sourceHost) {
-  if (sourceHost) return sourceHost;
   const override = global.__RN_INSPECTOR_RUNTIME_HOST__;
   if (typeof override === 'string' && override.trim()) return override.trim();
+  if (sourceHost) return sourceHost;
   const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS : null;
   return platform || 'unknown';
 }
@@ -153,7 +171,12 @@ function installRNNetInspect({
   const originalFetch = global.fetch ? global.fetch.bind(global) : null;
   const OriginalXHR = global.XMLHttpRequest;
   const platform = ReactNative && ReactNative.Platform ? ReactNative.Platform.OS || 'unknown' : 'unknown';
-  const { candidates: inspectorBaseUrls, sourceHost, usedFallbackOnly } = resolveInspectorTargets(inspectorUrl);
+  const {
+    candidates: inspectorBaseUrls,
+    sourceHost,
+    sourceLooksLoopback,
+    usedFallbackOnly,
+  } = resolveInspectorTargets(inspectorUrl);
   let activeBaseUrl = inspectorBaseUrls[0] || 'http://127.0.0.1:5555';
   let announcedBaseUrl = '';
   let didWarnMissingServer = false;
@@ -181,17 +204,22 @@ function installRNNetInspect({
     if (didWarnMissingServer) return;
     didWarnMissingServer = true;
     const detail = lastHealthError ? ` Last error: ${lastHealthError}.` : '';
+    const platformHint = platform === 'android' && sourceLooksLoopback
+      ? ' If this is a physical Android device, start `rn-netinspect-server` while the device is attached so it can set up `adb reverse tcp:5555 tcp:5555`.'
+      : platform === 'ios'
+        ? ' If this is a physical iPhone, pass `inspectorUrl` with your computer LAN IP when Metro is not exposing a LAN host.'
+        : '';
     inspectorWarn(
       `Server not reachable. Tried ${inspectorBaseUrls.join(', ')}.${detail} ` +
-      `Start the dashboard/backend before expecting request capture.`
+      `Start the dashboard/backend before expecting request capture.${platformHint}`
     );
   };
 
   if (usedFallbackOnly) {
     inspectorWarn(
       'Metro host could not be detected automatically. ' +
-      'This fallback works for simulators/emulators, but physical devices should pass ' +
-      'inspectorUrl like http://<your-computer-lan-ip>:5555.'
+      'Simulator and emulator fallbacks will be tried automatically. ' +
+      'Physical iPhone devices should pass inspectorUrl like http://<your-computer-lan-ip>:5555 if Metro is not using a LAN host.'
     );
   }
 
@@ -421,7 +449,6 @@ function installRNNetInspect({
   };
 
   global.__RN_INSPECTOR_UNINSTALL__ = uninstall;
-  announceBaseUrl(activeBaseUrl);
   void checkServer();
   void registerClient();
   const heartbeatTimer = typeof setInterval === 'function'

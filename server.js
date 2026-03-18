@@ -16,6 +16,7 @@
 const http  = require('http');
 const https = require('https');
 const net   = require('net');
+const os = require('os');
 const url   = require('url');
 const crypto = require('crypto');
 const { exec } = require('child_process');
@@ -267,6 +268,24 @@ function sh(cmd) {
   });
 }
 
+function formatShellFailure(result, fallback = 'command failed') {
+  return result.err || result.out || fallback;
+}
+
+function getLocalLanUrls(port = DASHBOARD_PORT) {
+  const interfaces = typeof os.networkInterfaces === 'function' ? os.networkInterfaces() : {};
+  const urls = new Set();
+  for (const addresses of Object.values(interfaces)) {
+    for (const address of addresses || []) {
+      if (!address || address.internal) continue;
+      const family = typeof address.family === 'string' ? address.family : String(address.family);
+      if (family !== 'IPv4') continue;
+      urls.add(`http://${address.address}:${port}`);
+    }
+  }
+  return [...urls].sort();
+}
+
 // ─── iOS detection ────────────────────────────────────────────────────────────
 async function detectiOSSimulators() {
   const r = await sh('xcrun simctl list devices --json 2>/dev/null');
@@ -448,25 +467,52 @@ async function detectAndroidEmulators() {
     if (!serial || serial === 'List') continue;
     const modelR = await sh(`adb -s ${serial} shell getprop ro.product.model 2>/dev/null`);
     const avdR   = await sh(`adb -s ${serial} emu avd name 2>/dev/null`);
+    const qemuR  = await sh(`adb -s ${serial} shell getprop ro.kernel.qemu 2>/dev/null`);
     const name   = (avdR.out ? avdR.out.split('\n')[0].trim() : '') || modelR.out || serial;
+    const isEmulator = (
+      serial.startsWith('emulator') ||
+      qemuR.out === '1' ||
+      !!(avdR.out && avdR.out.trim())
+    );
+    const proxyHost = isEmulator ? '10.0.2.2' : '';
     const proxyR = await sh(`adb -s ${serial} shell settings get global http_proxy 2>/dev/null`);
     const curProxy = proxyR.out || '';
-    const ours = curProxy.includes(`10.0.2.2:${PROXY_PORT}`) || curProxy.includes(`127.0.0.1:${PROXY_PORT}`);
+    const ours = proxyHost
+      ? curProxy.includes(`${proxyHost}:${PROXY_PORT}`)
+      : false;
+    const reverseReady = !isEmulator
+      ? await hasAndroidReverse(serial, DASHBOARD_PORT, DASHBOARD_PORT)
+      : false;
     result.push({
       id: 'android-' + serial,
       type: 'android',
       name,
       serial,
+      isEmulator,
+      proxyHost,
       status: 'running',
-      proxyStatus: ours ? 'connected' : 'disconnected',
-      detail: curProxy && curProxy !== 'null' ? `proxy: ${curProxy}` : 'no proxy set',
+      proxyStatus: isEmulator
+        ? (ours ? 'connected' : 'disconnected')
+        : (reverseReady ? 'connected' : 'disconnected'),
+      detail: isEmulator
+        ? (curProxy && curProxy !== 'null' ? `proxy: ${curProxy}` : 'no proxy set')
+        : (reverseReady
+          ? `adb reverse → 127.0.0.1:${DASHBOARD_PORT}`
+          : `physical device: waiting for adb reverse → 127.0.0.1:${DASHBOARD_PORT}`),
     });
   }
   return result;
 }
 
-async function setAndroidProxy(serial, enable) {
-  const host = serial.startsWith('emulator') ? '10.0.2.2' : '127.0.0.1';
+async function hasAndroidReverse(serial, remotePort = DASHBOARD_PORT, localPort = DASHBOARD_PORT) {
+  const r = await sh(`adb -s ${serial} reverse --list 2>/dev/null`);
+  if (!r.ok && !r.out) return false;
+  const remote = `tcp:${remotePort}`;
+  const local = `tcp:${localPort}`;
+  return r.out.split('\n').some(line => line.includes(remote) && line.includes(local));
+}
+
+async function setAndroidProxy(serial, enable, host = '10.0.2.2') {
   if (enable) {
     const r = await sh(`adb -s ${serial} shell settings put global http_proxy ${host}:${PROXY_PORT} 2>&1`);
     await sh(`adb -s ${serial} shell settings put global https_proxy ${host}:${PROXY_PORT} 2>&1`);
@@ -476,6 +522,17 @@ async function setAndroidProxy(serial, enable) {
     await sh(`adb -s ${serial} shell settings put global https_proxy :0 2>&1`);
     return r;
   }
+}
+
+async function setAndroidReverse(serial, enable, remotePort = DASHBOARD_PORT, localPort = DASHBOARD_PORT) {
+  if (enable) {
+    return sh(`adb -s ${serial} reverse tcp:${remotePort} tcp:${localPort} 2>&1`);
+  }
+  const r = await sh(`adb -s ${serial} reverse --remove tcp:${remotePort} 2>&1`);
+  if (!r.ok && /cannot remove|not found|does not exist/i.test(`${r.err} ${r.out}`)) {
+    return { ok: true, out: '', err: '' };
+  }
+  return r;
 }
 
 // ─── Metro / RN process detection ─────────────────────────────────────────────
@@ -532,14 +589,29 @@ async function scanAndAutoConnect() {
         }
       }
 
-      // Android: push proxy via adb for any not yet connected
+      // Android: emulators use proxy; physical devices use adb reverse to the dashboard.
       for (const dev of androidDevs) {
+        if (!dev.isEmulator) {
+          if (dev.proxyStatus !== 'connected') {
+            const res = await setAndroidReverse(dev.serial, true, DASHBOARD_PORT, DASHBOARD_PORT);
+            dev.proxyStatus = res.ok ? 'connected' : 'error';
+            dev.detail = res.ok
+              ? `adb reverse → 127.0.0.1:${DASHBOARD_PORT}`
+              : `adb reverse error: ${formatShellFailure(res)}`;
+            if (res.ok) {
+              inspectorLog(`Android reverse ready: ${dev.name} → 127.0.0.1:${DASHBOARD_PORT}`);
+            }
+          }
+          continue;
+        }
         if (dev.proxyStatus !== 'connected') {
-          const res = await setAndroidProxy(dev.serial, true);
+          const res = await setAndroidProxy(dev.serial, true, dev.proxyHost || '10.0.2.2');
           dev.proxyStatus = res.ok ? 'connected' : 'error';
-          dev.detail = res.ok ? `adb → 10.0.2.2:${PROXY_PORT}` : `adb error: ${res.err}`;
+          dev.detail = res.ok
+            ? `adb proxy → ${dev.proxyHost || '10.0.2.2'}:${PROXY_PORT}`
+            : `adb error: ${formatShellFailure(res)}`;
           if (res.ok) {
-            inspectorLog(`Android proxy connected: ${dev.name} → 10.0.2.2:${PROXY_PORT}`);
+            inspectorLog(`Android proxy connected: ${dev.name} → ${dev.proxyHost || '10.0.2.2'}:${PROXY_PORT}`);
           }
         }
       }
@@ -571,9 +643,20 @@ async function handleDeviceAction(action, deviceId) {
       dev.proxyStatus = res.ok ? 'connected' : 'error';
       dev.detail = formatMacProxySetDetail(res);
     } else if (dev.type === 'android') {
-      const res = await setAndroidProxy(dev.serial, true);
+      if (!dev.isEmulator) {
+        const res = await setAndroidReverse(dev.serial, true, DASHBOARD_PORT, DASHBOARD_PORT);
+        dev.proxyStatus = res.ok ? 'connected' : 'error';
+        dev.detail = res.ok
+          ? `adb reverse → 127.0.0.1:${DASHBOARD_PORT}`
+          : `adb reverse error: ${formatShellFailure(res)}`;
+        broadcastDevices();
+        return { ok: true, device: dev };
+      }
+      const res = await setAndroidProxy(dev.serial, true, dev.proxyHost || '10.0.2.2');
       dev.proxyStatus = res.ok ? 'connected' : 'error';
-      dev.detail = res.ok ? `adb → 10.0.2.2:${PROXY_PORT}` : res.err;
+      dev.detail = res.ok
+        ? `adb proxy → ${dev.proxyHost || '10.0.2.2'}:${PROXY_PORT}`
+        : formatShellFailure(res);
     }
   } else if (action === 'disconnect') {
     if (dev.type === 'ios') {
@@ -581,6 +664,13 @@ async function handleDeviceAction(action, deviceId) {
       dev.proxyStatus = 'disconnected';
       dev.detail = 'Mac-wide proxy cleared';
     } else if (dev.type === 'android') {
+      if (!dev.isEmulator) {
+        await setAndroidReverse(dev.serial, false, DASHBOARD_PORT, DASHBOARD_PORT);
+        dev.proxyStatus = 'disconnected';
+        dev.detail = 'adb reverse cleared';
+        broadcastDevices();
+        return { ok: true, device: dev };
+      }
       await setAndroidProxy(dev.serial, false);
       dev.proxyStatus = 'disconnected';
       dev.detail = 'adb proxy cleared';
@@ -892,9 +982,9 @@ body{background:
   <div class="sidebar">
     <div class="sb-divider">
       <div class="sb-head">
-        Simulators / Emulators
+        Simulators / Devices
         <div class="toggle-wrap" onclick="toggleAuto()">
-          <span class="toggle-label">Auto ADB</span>
+          <span class="toggle-label">Auto ADB Connect</span>
           <div class="toggle on" id="autoToggle"><div class="toggle-knob"></div></div>
         </div>
       </div>
@@ -932,13 +1022,15 @@ body{background:
           <div class="empty-st">
           <div class="empty-icon">🔍</div>
           <div class="empty-title">Waiting for requests</div>
-          <div class="empty-sub">Android can be auto-configured here.<br>iOS Simulator uses the Mac system proxy, so enabling it also captures host Mac traffic.</div>
+          <div class="empty-sub">Android emulator proxy and Android device adb reverse can be auto-configured here.<br>iOS Simulator uses the Mac system proxy, so enabling it also captures host Mac traffic.</div>
           <div class="empty-code">
-            <span class="c">// Android manual fallback:</span><br>
+            <span class="c">// Android real device:</span><br>
+            <span class="n">adb</span> reverse <span class="s">tcp:5555 tcp:5555</span><br><br>
+            <span class="c">// Android emulator proxy fallback:</span><br>
             <span class="n">adb</span> shell settings put global<br>
             &nbsp;&nbsp;http_proxy <span class="s">10.0.2.2:8899</span><br><br>
-            <span class="c">// iOS Simulator uses macOS proxy settings</span><br>
-            <span class="c">// "Enable Mac-wide" affects desktop traffic too</span>
+            <span class="c">// iPhone real device fallback:</span><br>
+            <span class="k">installRNNetInspect</span>({ <span class="n">inspectorUrl</span>: <span class="s">'http://192.168.1.10:5555'</span> })
           </div>
         </div>
       </div>
@@ -983,15 +1075,19 @@ function connectWS(){
 function renderDevices({devices,rnProcesses}){
   const dl=document.getElementById('deviceList'), rl=document.getElementById('rnList');
   if(!devices||devices.length===0){
-    dl.innerHTML='<div class="empty-sb">No simulators/emulators found.<br>Physical devices register under Metro / RN Apps.<button class="scan-btn" onclick="triggerScan()">↺ Scan now</button></div>';
+    dl.innerHTML='<div class="empty-sb">No simulators or adb devices found.<br>Connect Android devices with adb to enable auto reverse.<button class="scan-btn" onclick="triggerScan()">↺ Scan now</button></div>';
   } else {
     dl.innerHTML=devices.map(d=>{
       const icon=d.type==='ios'?'📱':'🤖';
       const sc=d.proxyStatus==='connected'?'connected':d.proxyStatus==='error'?'error':'';
           const dc=d.proxyStatus==='connected'?'connected':d.proxyStatus==='error'?'error':'';
           const isCon=d.proxyStatus==='connected';
-          const connectLabel=d.type==='ios'?'⊕ Enable Mac-wide':'⊕ Connect';
-          const disconnectLabel=d.type==='ios'?'⊗ Disable Mac-wide':'⊗ Disconnect';
+          const connectLabel=d.type==='ios'
+            ?'⊕ Enable Mac-wide'
+            :(d.isEmulator?'⊕ Connect Proxy':'⊕ Enable ADB Reverse');
+          const disconnectLabel=d.type==='ios'
+            ?'⊗ Disable Mac-wide'
+            :(d.isEmulator?'⊗ Disconnect Proxy':'⊗ Disable ADB Reverse');
       return \`<div class="d-card \${sc}">
         <div class="d-card-top"><span class="d-icon">\${icon}</span><span class="d-name">\${esc(d.name)}</span><span class="d-dot \${dc}"></span></div>
         <div class="d-detail" title="\${esc(d.detail||d.runtime||d.serial||'')}">\${esc(d.detail||d.runtime||d.serial||'')}</div>
@@ -1017,8 +1113,12 @@ function devAction(action,id){
       if(!d.ok)return showToast('✗ '+(d.error||'Failed'));
       const dev=d.device||{};
       const msg=action==='connect'
-        ? (dev.type==='ios'?'✓ Mac-wide proxy enabled':'✓ Proxy connected')
-        : (dev.type==='ios'?'✓ Mac-wide proxy disabled':'✓ Disconnected');
+        ? (dev.type==='ios'
+          ?'✓ Mac-wide proxy enabled'
+          :(dev.isEmulator?'✓ Proxy connected':'✓ ADB reverse enabled'))
+        : (dev.type==='ios'
+          ?'✓ Mac-wide proxy disabled'
+          :(dev.isEmulator?'✓ Proxy disconnected':'✓ ADB reverse disabled'));
       showToast(msg);
     })
     .catch(()=>showToast('✗ Request failed'));
@@ -1028,7 +1128,7 @@ function toggleAuto(){
   autoOn=!autoOn;
   document.getElementById('autoToggle').classList.toggle('on',autoOn);
   fetch('/api/autoconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:autoOn})});
-  showToast(autoOn?'Android auto-connect on':'Android auto-connect off');
+  showToast(autoOn?'Android adb auto-connect on':'Android adb auto-connect off');
 }
 
 function filtered(){
@@ -1556,8 +1656,12 @@ proxyServer.on('connect', (req, cSocket, head) => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 dashboardServer.listen(DASHBOARD_PORT, "0.0.0.0", () => {
   inspectorLog(`Dashboard running at http://localhost:${DASHBOARD_PORT}`);
-  inspectorLog(`Device proxy listening on 127.0.0.1:${PROXY_PORT}`);
-  inspectorLog('Auto-detecting simulators, emulators, and Metro processes');
+  for (const lanUrl of getLocalLanUrls(DASHBOARD_PORT)) {
+    inspectorLog(`LAN access: ${lanUrl}`);
+  }
+  inspectorLog(`Android real devices use adb reverse → 127.0.0.1:${DASHBOARD_PORT}`);
+  inspectorLog(`Device proxy listening on 0.0.0.0:${PROXY_PORT}`);
+  inspectorLog('Auto-detecting simulators, emulators, devices, and Metro processes');
   scanAndAutoConnect();
   setInterval(scanAndAutoConnect, SCAN_INTERVAL);
 });
