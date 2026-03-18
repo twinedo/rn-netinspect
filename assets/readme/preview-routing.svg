@@ -1,0 +1,67 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="80" x2="1480" y2="920" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0D1320"/>
+      <stop offset="1" stop-color="#151E2E"/>
+    </linearGradient>
+    <linearGradient id="lineA" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#35D2FF"/>
+      <stop offset="1" stop-color="#7FE3FF"/>
+    </linearGradient>
+    <linearGradient id="lineB" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#66E5A4"/>
+      <stop offset="1" stop-color="#A6F1C8"/>
+    </linearGradient>
+    <linearGradient id="lineC" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFB25A"/>
+      <stop offset="1" stop-color="#FFD59D"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="980" rx="32" fill="url(#bg)"/>
+  <text x="88" y="116" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700">One dashboard, multiple device routes</text>
+  <text x="88" y="156" fill="#93A6BA" font-family="Arial, Helvetica, sans-serif" font-size="24">Choose the connection method that matches your runtime.</text>
+
+  <g transform="translate(86 252)">
+    <rect width="404" height="268" rx="28" fill="#152033" stroke="#31415B"/>
+    <text x="34" y="56" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">iOS Simulator</text>
+    <text x="34" y="112" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">127.0.0.1:5555</text>
+    <text x="34" y="160" fill="#9AB0C5" font-family="Arial, Helvetica, sans-serif" font-size="20">Direct loopback to your Mac</text>
+  </g>
+
+  <g transform="translate(86 594)">
+    <rect width="404" height="268" rx="28" fill="#152033" stroke="#31415B"/>
+    <text x="34" y="56" fill="#66E5A4" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Android Emulator</text>
+    <text x="34" y="112" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">10.0.2.2:5555</text>
+    <text x="34" y="160" fill="#9AB0C5" font-family="Arial, Helvetica, sans-serif" font-size="20">Emulator bridge to host machine</text>
+  </g>
+
+  <g transform="translate(596 252)">
+    <rect width="404" height="268" rx="28" fill="#152033" stroke="#31415B"/>
+    <text x="34" y="56" fill="#FFB25A" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Android Device over USB</text>
+    <text x="34" y="112" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">adb reverse</text>
+    <text x="34" y="160" fill="#9AB0C5" font-family="Arial, Helvetica, sans-serif" font-size="20">Phone 127.0.0.1 -> Mac 5555</text>
+  </g>
+
+  <g transform="translate(596 594)">
+    <rect width="404" height="268" rx="28" fill="#152033" stroke="#31415B"/>
+    <text x="34" y="56" fill="#F98DBD" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">Real Devices on Wi-Fi</text>
+    <text x="34" y="112" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">192.168.x.x:5555</text>
+    <text x="34" y="160" fill="#9AB0C5" font-family="Arial, Helvetica, sans-serif" font-size="20">Use your computer LAN IP</text>
+  </g>
+
+  <g transform="translate(1118 382)">
+    <rect width="394" height="352" rx="30" fill="#0F1725" stroke="#32415A"/>
+    <text x="40" y="62" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Dashboard</text>
+    <text x="40" y="104" fill="#93A6BA" font-family="Arial, Helvetica, sans-serif" font-size="20">http://localhost:5555</text>
+    <rect x="40" y="146" width="314" height="22" rx="11" fill="#15263A"/>
+    <rect x="40" y="188" width="266" height="22" rx="11" fill="#15263A"/>
+    <rect x="40" y="230" width="288" height="22" rx="11" fill="#15263A"/>
+    <rect x="40" y="286" width="122" height="40" rx="14" fill="#133244"/>
+    <text x="72" y="312" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Inspect</text>
+  </g>
+
+  <path d="M490 386C526 386 548 386 596 444" stroke="url(#lineA)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M490 728C536 728 548 722 596 666" stroke="url(#lineB)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M1000 386C1054 386 1084 416 1118 482" stroke="url(#lineC)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M1000 728C1056 724 1084 690 1118 636" stroke="#F98DBD" stroke-width="8" stroke-linecap="round"/>
+</svg>

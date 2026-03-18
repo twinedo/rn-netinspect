@@ -1,12 +1,40 @@
-# `@twinedo/rn-netinspect`
+<p align="center">
+  <img src="./assets/readme/banner.svg" alt="React Native NetInspect banner" width="100%" />
+</p>
 
-React Native NetInspect is a React Native network inspector for React Native apps.
+<h1 align="center">React Native NetInspect</h1>
+<p align="center">Inspect React Native traffic across simulator, emulator, and real devices.</p>
 
-It can capture requests from:
-- iOS Simulator
-- Android Emulator
-- iPhone real device
-- Android real device
+<p align="center">
+  <a href="https://www.npmjs.com/package/@twinedo/rn-netinspect"><img alt="npm version" src="https://img.shields.io/npm/v/@twinedo/rn-netinspect?color=00d4ff&label=npm"></a>
+  <img alt="platforms" src="https://img.shields.io/badge/platforms-iOS%20%7C%20Android-1f2937">
+  <img alt="runtime" src="https://img.shields.io/badge/runtime-React%20Native-111827">
+  <img alt="license" src="https://img.shields.io/npm/l/@twinedo/rn-netinspect?color=7c3aed">
+</p>
+
+<p align="center">
+  Dashboard on <code>:5555</code>. Optional proxy on <code>:8899</code>. Direct capture from <code>fetch</code> and <code>XMLHttpRequest</code>.
+</p>
+
+## Preview
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="./assets/readme/preview-dashboard.svg" alt="NetInspect dashboard preview" width="100%" />
+    </td>
+    <td width="50%">
+      <img src="./assets/readme/preview-routing.svg" alt="NetInspect device routing preview" width="100%" />
+    </td>
+  </tr>
+</table>
+
+## Why This Exists
+
+- See request method, URL, headers, body, status, duration, and response payload in one place.
+- Works across iOS Simulator, Android Emulator, USB-connected Android devices, and Wi-Fi-connected real devices.
+- Supports direct client capture, Android emulator proxy flow, and Android real-device `adb reverse` flow.
+- Keeps setup local: run one server on your machine and inspect requests from your app immediately.
 
 ## Install
 

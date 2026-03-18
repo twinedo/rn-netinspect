@@ -1,0 +1,72 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="80" x2="1120" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1220"/>
+      <stop offset="0.5" stop-color="#1B1E3A"/>
+      <stop offset="1" stop-color="#28131C"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 440) rotate(24) scale(440 220)">
+      <stop stop-color="#35D2FF" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#35D2FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(890 220) rotate(-12) scale(520 240)">
+      <stop stop-color="#FF7B39" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#FF7B39" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="104" height="104" patternUnits="userSpaceOnUse">
+      <path d="M104 0H0V104" stroke="#9FB3C8" stroke-opacity="0.12"/>
+      <circle cx="52" cy="52" r="2.5" fill="#D7E7F5" fill-opacity="0.38"/>
+    </pattern>
+    <filter id="noise" x="0" y="0" width="1280" height="640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA type="table" tableValues="0 0.1"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="640" rx="36" fill="url(#bg)"/>
+  <rect width="1280" height="640" rx="36" fill="url(#grid)"/>
+  <rect width="1280" height="640" rx="36" fill="url(#glowA)"/>
+  <rect width="1280" height="640" rx="36" fill="url(#glowB)"/>
+  <rect width="1280" height="640" rx="36" filter="url(#noise)" opacity="0.45"/>
+
+  <g opacity="0.82">
+    <path d="M88 502C176 448 252 436 334 443C430 451 501 495 583 493C676 490 757 439 846 416C930 394 1022 401 1186 464" stroke="#7EE0FF" stroke-opacity="0.32" stroke-width="2"/>
+    <path d="M74 526C190 470 266 482 356 499C434 513 503 550 603 546C714 541 801 473 905 460C997 448 1085 471 1188 519" stroke="#FF9A52" stroke-opacity="0.28" stroke-width="2"/>
+  </g>
+
+  <g>
+    <text x="88" y="168" fill="#F5FAFF" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700">React Native NetInspect</text>
+    <text x="88" y="226" fill="#A6B7C9" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="500">See every request. Across simulator, emulator, and real devices.</text>
+  </g>
+
+  <g transform="translate(88 320)">
+    <rect width="198" height="112" rx="22" fill="#111A2A" fill-opacity="0.82" stroke="#FF9A52" stroke-opacity="0.28"/>
+    <text x="24" y="34" fill="#9AB2C6" font-family="Arial, Helvetica, sans-serif" font-size="19">Dashboard</text>
+    <text x="24" y="82" fill="#F7FBFF" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700">:5555</text>
+  </g>
+
+  <g transform="translate(318 320)">
+    <rect width="198" height="112" rx="22" fill="#111A2A" fill-opacity="0.82" stroke="#FF9A52" stroke-opacity="0.28"/>
+    <text x="24" y="34" fill="#9AB2C6" font-family="Arial, Helvetica, sans-serif" font-size="19">Proxy</text>
+    <text x="24" y="82" fill="#F7FBFF" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700">:8899</text>
+  </g>
+
+  <g transform="translate(548 320)">
+    <rect width="590" height="112" rx="22" fill="#111A2A" fill-opacity="0.82" stroke="#FF9A52" stroke-opacity="0.28"/>
+    <text x="24" y="34" fill="#9AB2C6" font-family="Arial, Helvetica, sans-serif" font-size="19">Routes</text>
+    <text x="24" y="82" fill="#F7FBFF" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700">iOS • Android • Real Device</text>
+  </g>
+
+  <g transform="translate(980 124)">
+    <rect width="208" height="144" rx="26" fill="#FAFCFF" fill-opacity="0.96"/>
+    <rect x="30" y="28" width="148" height="14" rx="7" fill="#101827"/>
+    <rect x="30" y="58" width="110" height="14" rx="7" fill="#35D2FF"/>
+    <rect x="30" y="88" width="128" height="14" rx="7" fill="#1B2435" fill-opacity="0.24"/>
+    <rect x="30" y="118" width="78" height="14" rx="7" fill="#1B2435" fill-opacity="0.18"/>
+  </g>
+
+  <text x="88" y="572" fill="#7D90A5" font-family="Arial, Helvetica, sans-serif" font-size="20">twinedo/rn-netinspect</text>
+</svg>

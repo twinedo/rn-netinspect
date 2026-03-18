@@ -1,0 +1,91 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="50" x2="1440" y2="930" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1524"/>
+      <stop offset="1" stop-color="#121B29"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#1A2536"/>
+      <stop offset="1" stop-color="#131D2B"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="980" rx="32" fill="url(#bg)"/>
+  <rect x="32" y="32" width="1536" height="72" rx="20" fill="#182334" stroke="#2C3A52"/>
+  <circle cx="72" cy="68" r="8" fill="#FF6B6B"/>
+  <circle cx="100" cy="68" r="8" fill="#FFC857"/>
+  <circle cx="128" cy="68" r="8" fill="#4CD964"/>
+  <text x="172" y="76" fill="#F4F8FD" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">React Native NetInspect</text>
+
+  <rect x="32" y="128" width="320" height="820" rx="24" fill="url(#card)" stroke="#2C3A52"/>
+  <text x="64" y="178" fill="#8FA4BA" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">SIMULATORS / DEVICES</text>
+  <rect x="64" y="204" width="256" height="54" rx="14" fill="#1F2B40"/>
+  <text x="92" y="239" fill="#EAF4FF" font-family="Arial, Helvetica, sans-serif" font-size="22">Android Emulator</text>
+  <rect x="64" y="280" width="256" height="54" rx="14" fill="#1B2435" stroke="#2F405B"/>
+  <text x="92" y="315" fill="#AFC0D4" font-family="Arial, Helvetica, sans-serif" font-size="22">iPhone 15 Simulator</text>
+  <rect x="64" y="396" width="256" height="146" rx="18" fill="#121A27" stroke="#243044"/>
+  <text x="92" y="434" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">AUTO CONNECT</text>
+  <text x="92" y="472" fill="#EAF4FF" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">ADB reverse</text>
+  <text x="92" y="512" fill="#8FA4BA" font-family="Arial, Helvetica, sans-serif" font-size="18">Physical Android devices</text>
+
+  <rect x="384" y="128" width="1184" height="100" rx="24" fill="url(#card)" stroke="#2C3A52"/>
+  <rect x="420" y="156" width="420" height="44" rx="14" fill="#0F1624" stroke="#2B3950"/>
+  <text x="450" y="184" fill="#7E92A7" font-family="Arial, Helvetica, sans-serif" font-size="20">Filter URL, host, status...</text>
+  <rect x="872" y="156" width="86" height="44" rx="14" fill="#253247"/><text x="904" y="184" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">ALL</text>
+  <rect x="972" y="156" width="90" height="44" rx="14" fill="#13281E" stroke="#1C6242"/><text x="1005" y="184" fill="#78E3AB" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">GET</text>
+  <rect x="1076" y="156" width="96" height="44" rx="14" fill="#112431" stroke="#196382"/><text x="1109" y="184" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">POST</text>
+
+  <rect x="384" y="252" width="540" height="696" rx="24" fill="url(#card)" stroke="#2C3A52"/>
+  <rect x="948" y="252" width="620" height="696" rx="24" fill="url(#card)" stroke="#2C3A52"/>
+
+  <g transform="translate(418 286)">
+    <rect width="472" height="126" rx="18" fill="#182334"/>
+    <rect x="20" y="20" width="70" height="32" rx="10" fill="#11382A"/><text x="42" y="42" fill="#7AE3AA" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">GET</text>
+    <text x="20" y="84" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">/api/health</text>
+    <text x="20" y="112" fill="#89A0B6" font-family="Arial, Helvetica, sans-serif" font-size="18">localhost:5555</text>
+    <rect x="392" y="20" width="60" height="32" rx="10" fill="#163A2B"/><text x="409" y="42" fill="#7AE3AA" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">200</text>
+  </g>
+
+  <g transform="translate(418 432)">
+    <rect width="472" height="126" rx="18" fill="#182334"/>
+    <rect x="20" y="20" width="84" height="32" rx="10" fill="#143244"/><text x="41" y="42" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">POST</text>
+    <text x="20" y="84" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">/api/register</text>
+    <text x="20" y="112" fill="#89A0B6" font-family="Arial, Helvetica, sans-serif" font-size="18">android emulator</text>
+    <rect x="392" y="20" width="60" height="32" rx="10" fill="#163A2B"/><text x="409" y="42" fill="#7AE3AA" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">200</text>
+  </g>
+
+  <g transform="translate(418 578)">
+    <rect width="472" height="126" rx="18" fill="#182334"/>
+    <rect x="20" y="20" width="84" height="32" rx="10" fill="#143244"/><text x="41" y="42" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">POST</text>
+    <text x="20" y="84" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">/api/ingest</text>
+    <text x="20" y="112" fill="#89A0B6" font-family="Arial, Helvetica, sans-serif" font-size="18">captured request lifecycle</text>
+    <rect x="392" y="20" width="60" height="32" rx="10" fill="#163A2B"/><text x="409" y="42" fill="#7AE3AA" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700">200</text>
+  </g>
+
+  <text x="986" y="318" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">Request Detail</text>
+  <rect x="984" y="346" width="548" height="88" rx="18" fill="#101826" stroke="#27344A"/>
+  <text x="1014" y="396" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">POST</text>
+  <text x="1086" y="396" fill="#EAF4FF" font-family="Arial, Helvetica, sans-serif" font-size="22">https://api.example.com/v1/jobs</text>
+
+  <rect x="984" y="462" width="260" height="202" rx="18" fill="#121B29" stroke="#27344A"/>
+  <text x="1014" y="504" fill="#8FA4BA" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">REQUEST HEADERS</text>
+  <text x="1014" y="548" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="18">Authorization</text>
+  <text x="1014" y="582" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="16">Bearer eyJh...</text>
+  <text x="1014" y="626" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="18">Content-Type</text>
+  <text x="1014" y="660" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="16">application/json</text>
+
+  <rect x="1272" y="462" width="260" height="202" rx="18" fill="#121B29" stroke="#27344A"/>
+  <text x="1302" y="504" fill="#8FA4BA" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">RESPONSE</text>
+  <text x="1302" y="548" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="18">Status</text>
+  <text x="1302" y="582" fill="#7AE3AA" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700">200</text>
+  <text x="1302" y="626" fill="#F6FBFF" font-family="Arial, Helvetica, sans-serif" font-size="18">Duration</text>
+  <text x="1302" y="660" fill="#7FE3FF" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">182 ms</text>
+
+  <rect x="984" y="692" width="548" height="220" rx="18" fill="#0F1624" stroke="#27344A"/>
+  <text x="1014" y="734" fill="#8FA4BA" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">BODY PREVIEW</text>
+  <text x="1014" y="784" fill="#FFCC7A" font-family="Courier New, monospace" font-size="18">{</text>
+  <text x="1046" y="816" fill="#7FE3FF" font-family="Courier New, monospace" font-size="18">"jobId"</text>
+  <text x="1134" y="816" fill="#EAF4FF" font-family="Courier New, monospace" font-size="18">: 51,</text>
+  <text x="1046" y="848" fill="#7FE3FF" font-family="Courier New, monospace" font-size="18">"status"</text>
+  <text x="1148" y="848" fill="#EAF4FF" font-family="Courier New, monospace" font-size="18">: "ok"</text>
+  <text x="1014" y="880" fill="#FFCC7A" font-family="Courier New, monospace" font-size="18">}</text>
+</svg>

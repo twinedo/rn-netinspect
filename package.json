@@ -1,6 +1,6 @@
 {
   "name": "@twinedo/rn-netinspect",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "React Native NetInspect is a React Native Network Inspector for inspecting app network requests.",
   "main": "./index.js",
   "types": "./index.d.ts",
@@ -20,6 +20,7 @@
     "server.js",
     "index.d.ts",
     "README.md",
+    "assets",
     "LICENSE"
   ],
   "keywords": [
