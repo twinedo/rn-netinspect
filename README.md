@@ -52,6 +52,9 @@ if (__DEV__) {
   installRNNetInspect({ appName: "My RN App" });
 }
 ```
+Important:
+- Keep the `require("@twinedo/rn-netinspect")` call inside `if (__DEV__)`.
+- This is the recommended setup because the inspector stays development-only and should not be included in production builds.
 
 If you already know the inspector URL for the current device, you can pass it explicitly:
 
