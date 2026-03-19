@@ -964,6 +964,22 @@ body{background:
 .cbtn:hover{color:var(--accent);border-color:var(--accent)}
 .bpre{background:rgba(30,38,48,.92);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:12px;line-height:1.8;color:var(--text2);overflow-x:auto;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow-y:auto}
 .bpre::-webkit-scrollbar{width:3px;height:3px}.bpre::-webkit-scrollbar-thumb{background:var(--border2)}
+.json-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.json-search{position:relative;flex:1;min-width:220px}
+.json-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none}
+.json-input{width:100%;background:rgba(22,27,34,.9);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 10px 8px 31px;outline:none;transition:border-color .15s}
+.json-input:focus{border-color:var(--accent)}
+.json-status{font-family:var(--mono);font-size:11px;color:var(--text3)}
+.jtree{background:rgba(30,38,48,.92);border:1px solid var(--border);border-radius:8px;padding:10px 0;max-height:420px;overflow:auto}
+.jtree::-webkit-scrollbar{width:3px;height:3px}.jtree::-webkit-scrollbar-thumb{background:var(--border2)}
+.jline{font-family:var(--mono);font-size:12px;line-height:1.8;color:var(--text2);white-space:nowrap;padding-right:14px}
+.jtoggle{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-right:2px;border:none;background:none;color:var(--text3);cursor:pointer;font-size:10px;vertical-align:middle}
+.jtoggle:hover{color:var(--accent)}
+.jtoggle.spacer{cursor:default;opacity:0}
+.jtoggle.open{color:var(--text2)}
+.jbrace,.jcomma{color:var(--text3)}
+.jmeta,.jellipsis{color:var(--text3);font-size:11px}
+.jmark{background:rgba(255,235,59,.18);color:#fff3a0;border-radius:3px;padding:0 1px}
 .jk{color:#7ecfff}.js{color:#98e4a0}.jn{color:#ffb86c}.jb{color:#ff79c6}.jnull{color:#6272a4}
 .no-body{font-family:var(--mono);font-size:12px;color:var(--text3);padding:16px 14px;text-align:center}
 .curl-tools{padding:14px;display:flex;flex-direction:column;gap:14px}
@@ -1089,7 +1105,7 @@ body{background:
 <div class="toast" id="toast"></div>
 
 <script>
-let allReqs=[], selId=null, activeM='ALL', searchQ='', paused=false, tabState={}, curlState={}, autoOn=true, ws, maxT=1;
+let allReqs=[], selId=null, activeM='ALL', searchQ='', paused=false, tabState={}, curlState={}, bodyViewState={}, autoOn=true, ws, maxT=1;
 const COMPACT_BREAKPOINT=1180;
 
 function normReqId(id){return String(id)}
@@ -1256,8 +1272,8 @@ function renderDetail(r){
     <div class="dh">
       <div class="durl"><span class="dm">\${r.method}</span>\${esc(fullUrl)}</div>
       <div class="dh-actions">
-        <button class="cbtn" onclick="cpTxt(\\\`\${esc(fullUrl)}\\\`)">Copy URL</button>
-        \${authHeader?\`<button class="cbtn" onclick="copyAuth('\${r.id}')">Copy Auth</button>\`:''}
+        <button class="cbtn" onclick="cpTxt(\${jsArg(fullUrl)})">Copy URL</button>
+        \${authHeader?\`<button class="cbtn" onclick="copyAuth(\${jsArg(r.id)})">Copy Auth</button>\`:''}
       </div>
       <div class="dstats">
         <div class="stat"><div class="stat-l">Status</div><div class="stat-v \${sc}">\${r.error?'Error':r.status||'Pending'}</div></div>
@@ -1271,8 +1287,8 @@ function renderDetail(r){
     <div class="tabs">
       \${tabs.map(t=>\`<div class="tab \${tab===t.key?'active':''}" onclick="setT('\${r.id}','\${t.key}')">\${t.label}\${t.badge!=null?\`<span class="tb">\${t.badge}</span>\`:''}</div>\`).join('')}
     </div>
-    <div class="tc \${tab==='request'?'active':''}">\${hSec('Request Headers',r.requestHeaders)}\${bSec('Request Body',r.requestBody,r.requestHeaders)}</div>
-    <div class="tc \${tab==='response'?'active':''}">\${hSec('Response Headers',r.responseHeaders)}\${bSec('Response Body',r.responseBody,r.responseHeaders)}</div>
+    <div class="tc \${tab==='request'?'active':''}">\${hSec('Request Headers',r.requestHeaders)}\${bSec('Request Body',r.requestBody,r.requestHeaders,{id:r.id,key:'request-body'})}</div>
+    <div class="tc \${tab==='response'?'active':''}">\${hSec('Response Headers',r.responseHeaders)}\${bSec('Response Body',r.responseBody,r.responseHeaders,{id:r.id,key:'response-body'})}</div>
     <div class="tc \${tab==='params'?'active':''}">\${pSec(r.path)}</div>
     <div class="tc \${tab==='timing'?'active':''}">\${tSec(r)}</div>
     <div class="tc \${tab==='raw'?'active':''}">\${rawSec(r)}</div>
@@ -1285,17 +1301,21 @@ function hSec(title,headers){
   return \`<div class="sec"><div class="sec-h" onclick="togSec(this)"><div class="sec-t">\${title}<span class="sec-cnt">\${entries.length}</span></div><span class="sec-chev open">▶</span></div>
     <div class="sec-b open">\${entries.length===0?'<div class="no-body">No headers</div>':\`<table class="htable">\${entries.map(([k,v])=>\`<tr><td class="hkey">\${esc(k)}</td><td class="hval">\${esc(String(v))}</td></tr>\`).join('')}</table>\`}</div></div>\`;
 }
-function bSec(title,body,headers){
+function bSec(title,body,headers,opts={}){
   const ct=(headers&&(headers['content-type']||headers['Content-Type']))||'';
-  if(!body)return\`<div class="sec"><div class="sec-h" onclick="togSec(this)"><div class="sec-t">\${title}</div><span class="sec-chev open">▶</span></div><div class="sec-b open"><div class="no-body">No body</div></div></div>\`;
-  const isJ=ct.includes('json');
+  if(body==null||body==='')return\`<div class="sec"><div class="sec-h" onclick="togSec(this)"><div class="sec-t">\${title}</div><span class="sec-chev open">▶</span></div><div class="sec-b open"><div class="no-body">No body</div></div></div>\`;
+  const isJ=ct.includes('json')||(body&&typeof body==='object');
+  const viewId=opts.id!=null?normReqId(opts.id):'static';
+  const sectionKey=opts.key||title.toLowerCase().replace(/\\s+/g,'-');
   let rendered='',tl='text/plain';
-  if(isJ){tl='application/json';try{rendered=hlJ(JSON.stringify(typeof body==='string'?JSON.parse(body):body,null,2))}catch{rendered=esc(body)}}
-  else rendered=esc(String(body));
+  if(isJ){
+    tl='application/json';
+    try{rendered=renderJsonBody(typeof body==='string'?JSON.parse(body):body,viewId,sectionKey)}catch{rendered=\`<pre class="bpre">\${esc(String(body))}</pre>\`}
+  } else rendered=\`<pre class="bpre">\${esc(String(body))}</pre>\`;
   const raw=typeof body==='string'?body:JSON.stringify(body,null,2);
   const sz=new Blob([raw]).size;
   return\`<div class="sec"><div class="sec-h" onclick="togSec(this)"><div class="sec-t">\${title}</div><span class="sec-chev open">▶</span></div>
-    <div class="sec-b open"><div class="bv"><div class="btbar"><span class="btype">\${tl}</span><span class="bsize">\${fmtB(sz)}</span><button class="cbtn" onclick="cpTxt(\\\`\${esc(raw)}\\\`)">Copy</button></div><pre class="bpre">\${rendered}</pre></div></div></div>\`;
+    <div class="sec-b open"><div class="bv"><div class="btbar"><span class="btype">\${tl}</span><span class="bsize">\${fmtB(sz)}</span><button class="cbtn" onclick="cpTxt(\${jsArg(raw)})">Copy</button></div>\${rendered}</div></div></div>\`;
 }
 function pSec(path){
   if(!path)return'<div class="no-body">No URL</div>';
@@ -1320,11 +1340,121 @@ function rawSec(r){
   const rsB=r.responseBody?'\\n\\n'+(typeof r.responseBody==='string'?r.responseBody:JSON.stringify(r.responseBody,null,2)):'';
   const rawRq=\`\${r.method} \${r.path||'/'} HTTP/1.1\\n\${rqH}\${rqB}\`;
   const rawRs=\`\${rsL}\\n\${rsH}\${rsB}\`;
-  return\`<div class="bv"><div class="btbar"><span class="btype">RAW REQUEST</span><button class="cbtn" onclick="cpTxt(\\\`\${esc(rawRq)}\\\`)">Copy</button></div><pre class="bpre">\${esc(rawRq)}</pre></div>
-    <div class="bv" style="border-top:1px solid var(--border)"><div class="btbar"><span class="btype">RAW RESPONSE</span><button class="cbtn" onclick="cpTxt(\\\`\${esc(rawRs)}\\\`)">Copy</button></div><pre class="bpre">\${esc(rawRs)}</pre></div>\`;
+  return\`<div class="bv"><div class="btbar"><span class="btype">RAW REQUEST</span><button class="cbtn" onclick="cpTxt(\${jsArg(rawRq)})">Copy</button></div><pre class="bpre">\${esc(rawRq)}</pre></div>
+    <div class="bv" style="border-top:1px solid var(--border)"><div class="btbar"><span class="btype">RAW RESPONSE</span><button class="cbtn" onclick="cpTxt(\${jsArg(rawRs)})">Copy</button></div><pre class="bpre">\${esc(rawRs)}</pre></div>\`;
 }
 function shellQuote(v){return "'" + String(v==null?'':v).replace(/'/g,"'\\''") + "'"}
 function bodyText(v){return typeof v==='string'?v:JSON.stringify(v,null,2)}
+function bodyStateKey(id,section){return normReqId(id)+'::'+String(section)}
+function getBodyState(id,section){
+  const key=bodyStateKey(id,section);
+  if(!bodyViewState[key])bodyViewState[key]={search:'',collapsed:{}};
+  return bodyViewState[key];
+}
+function setBodySearch(id,section,value){
+  const st=getBodyState(id,section);
+  st.search=String(value||'');
+  const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));
+  if(r)renderDetail(r);
+}
+function toggleJsonNode(id,section,path){
+  const st=getBodyState(id,section);
+  st.collapsed[path]=!st.collapsed[path];
+  const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));
+  if(r)renderDetail(r);
+}
+function jsonQuery(value){return String(value||'').trim().toLowerCase()}
+function jsonSummaryLabel(value){
+  if(Array.isArray(value))return value.length+' item'+(value.length===1?'':'s');
+  if(value&&typeof value==='object')return Object.keys(value).length+' key'+(Object.keys(value).length===1?'':'s');
+  return 'Primitive';
+}
+function highlightMatch(value,query){
+  const src=String(value);
+  if(!query)return esc(src);
+  const lower=src.toLowerCase();
+  let idx=0,out='';
+  while(idx<src.length){
+    const at=lower.indexOf(query,idx);
+    if(at===-1){out+=esc(src.slice(idx));break}
+    out+=esc(src.slice(idx,at))+\`<mark class="jmark">\${esc(src.slice(at,at+query.length))}</mark>\`;
+    idx=at+query.length;
+  }
+  return out;
+}
+function jsonPrimitiveMarkup(value,query){
+  if(typeof value==='string')return \`<span class="js">\${highlightMatch(JSON.stringify(value),query)}</span>\`;
+  if(typeof value==='number')return \`<span class="jn">\${highlightMatch(String(value),query)}</span>\`;
+  if(typeof value==='boolean')return \`<span class="jb">\${highlightMatch(String(value),query)}</span>\`;
+  if(value===null)return \`<span class="jnull">\${highlightMatch('null',query)}</span>\`;
+  return \`<span class="js">\${highlightMatch(JSON.stringify(value),query)}</span>\`;
+}
+function jsonKeyMarkup(key,query){
+  if(key==null)return '';
+  if(typeof key==='number')return \`<span class="jk">[\${highlightMatch(String(key),query)}]</span><span class="jcomma">: </span>\`;
+  return \`<span class="jk">\${highlightMatch(JSON.stringify(String(key)),query)}</span><span class="jcomma">: </span>\`;
+}
+function jsonNodePath(path,key){return path+'/'+encodeURIComponent(String(key))}
+function renderJsonNode(value,ctx,path,depth,key,isLast){
+  const query=ctx.query;
+  const keyMatch=key!=null&&query?String(key).toLowerCase().includes(query):false;
+  const indent=depth*16;
+  if(!value||typeof value!=='object'){
+    const valueMatch=query?String(value).toLowerCase().includes(query):true;
+    const matched=!query||keyMatch||valueMatch;
+    if(!matched)return{html:'',matches:0};
+    return{
+      html:\`<div class="jline" style="padding-left:\${indent}px"><span class="jtoggle spacer">•</span>\${jsonKeyMarkup(key,query)}\${jsonPrimitiveMarkup(value,query)}\${isLast?'':'<span class="jcomma">,</span>'}</div>\`,
+      matches:(keyMatch?1:0)+(valueMatch?1:0),
+    };
+  }
+
+  const isArray=Array.isArray(value);
+  const entries=isArray?value.map((item,index)=>[index,item]):Object.entries(value);
+  const children=entries.map(([childKey,childValue],index)=>renderJsonNode(
+    childValue,
+    ctx,
+    jsonNodePath(path,childKey),
+    depth+1,
+    childKey,
+    index===entries.length-1
+  ));
+  const childMatches=children.reduce((sum,child)=>sum+child.matches,0);
+  const ownMatches=keyMatch?1:0;
+  const matched=!query||ownMatches>0||childMatches>0;
+  if(!matched)return{html:'',matches:0};
+
+  const collapsed=!!ctx.state.collapsed[path];
+  const openChar=isArray?'[':'{';
+  const closeChar=isArray?']':'}';
+  const toggle=entries.length
+    ? \`<button class="jtoggle \${collapsed?'':'open'}" onclick="toggleJsonNode(\${jsArg(ctx.id)},\${jsArg(ctx.section)},\${jsArg(path)})">\${collapsed?'▶':'▼'}</button>\`
+    : '<span class="jtoggle spacer">•</span>';
+  const summary=entries.length===0
+    ? \`<span class="jbrace">\${openChar}\${closeChar}</span>\`
+    : \`<span class="jbrace">\${openChar}</span> <span class="jmeta">\${jsonSummaryLabel(value)}</span>\${collapsed?' <span class="jellipsis">…</span>':''} <span class="jbrace">\${closeChar}</span>\`;
+
+  if(collapsed||entries.length===0){
+    return{
+      html:\`<div class="jline" style="padding-left:\${indent}px">\${toggle}\${jsonKeyMarkup(key,query)}\${summary}\${isLast?'':'<span class="jcomma">,</span>'}</div>\`,
+      matches:ownMatches+childMatches,
+    };
+  }
+
+  return{
+    html:\`<div class="jline" style="padding-left:\${indent}px">\${toggle}\${jsonKeyMarkup(key,query)}<span class="jbrace">\${openChar}</span></div>\${children.map(child=>child.html).join('')}<div class="jline" style="padding-left:\${indent}px"><span class="jtoggle spacer">•</span><span class="jbrace">\${closeChar}</span>\${isLast?'':'<span class="jcomma">,</span>'}</div>\`,
+    matches:ownMatches+childMatches,
+  };
+}
+function renderJsonBody(value,id,section){
+  const st=getBodyState(id,section);
+  const query=jsonQuery(st.search);
+  const tree=renderJsonNode(value,{id,section,query,state:st},'root',0,null,true);
+  const status=query
+    ? tree.matches+' match'+(tree.matches===1?'':'es')
+    : jsonSummaryLabel(value);
+  return \`<div class="json-tools"><label class="json-search"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input class="json-input" placeholder="Search JSON body" value="\${esc(st.search||'')}" oninput="setBodySearch(\${jsArg(id)},\${jsArg(section)},this.value)"></label><div class="json-status">\${esc(status)}</div></div>\${tree.html?\`<div class="jtree">\${tree.html}</div>\`:'<div class="no-body">No matches in JSON body</div>'}\`;
+}
 function buildCurlCommand(r){
   const flags=[];
   const fullUrl=(r.scheme||'http')+'://'+(r.host||'')+(r.path||'');
@@ -1428,7 +1558,7 @@ function copyNormalizedParsedCurl(id){
 }
 function curlPreviewMarkup(id,parsed){
   const headerCount=Object.keys(parsed.headers||{}).length;
-  return \`<div class="curl-box"><div class="curl-preview-head"><div class="curl-title">Parsed cURL</div><button class="cbtn" onclick="copyNormalizedParsedCurl('\${id}')">Copy Normalized</button></div><div class="curl-preview-url"><span class="dm">\${esc(parsed.method)}</span> \${esc(parsed.url)}</div></div>\${hSec('Parsed Headers',parsed.headers)}\${headerCount===0&&parsed.body==null?'<div class="curl-note">No headers or body detected from the pasted command.</div>':''}\${bSec('Parsed Body',parsed.body,parsed.headers)}</div>\`;
+  return \`<div class="curl-box"><div class="curl-preview-head"><div class="curl-title">Parsed cURL</div><button class="cbtn" onclick="copyNormalizedParsedCurl(\${jsArg(id)})">Copy Normalized</button></div><div class="curl-preview-url"><span class="dm">\${esc(parsed.method)}</span> \${esc(parsed.url)}</div></div>\${hSec('Parsed Headers',parsed.headers)}\${headerCount===0&&parsed.body==null?'<div class="curl-note">No headers or body detected from the pasted command.</div>':''}\${bSec('Parsed Body',parsed.body,parsed.headers,{id,key:'curl-parsed-body'})}</div>\`;
 }
 function parseCurlIntoState(id){
   const st=getCurlState(id), res=parseCurlCommand(st.input);
@@ -1470,6 +1600,7 @@ function copyAuth(id){
   showToast('Authorization header not found');
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\`/g,'&#96;')}
+function jsArg(v){return esc(JSON.stringify(v))}
 function fmtB(b){if(!b)return'0 B';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(2)+' MB'}
 function hlJ(j){return j.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{let c='jn';if(/^"/.test(m))c=/:$/.test(m)?'jk':'js';else if(/true|false/.test(m))c='jb';else if(/null/.test(m))c='jnull';return\`<span class="\${c}">\${esc(m)}</span>\`})}
 function togSec(h){const b=h.nextElementSibling;const ch=h.querySelector('.sec-chev');ch.classList.toggle('open',b.classList.toggle('open'))}
