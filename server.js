@@ -1346,22 +1346,45 @@ function rawSec(r){
 function shellQuote(v){return "'" + String(v==null?'':v).replace(/'/g,"'\\''") + "'"}
 function bodyText(v){return typeof v==='string'?v:JSON.stringify(v,null,2)}
 function bodyStateKey(id,section){return normReqId(id)+'::'+String(section)}
+function bodySearchInputId(id,section){return 'json-search-'+normReqId(id)+'-'+String(section).replace(/[^a-z0-9_-]+/ig,'-')}
 function getBodyState(id,section){
   const key=bodyStateKey(id,section);
   if(!bodyViewState[key])bodyViewState[key]={search:'',collapsed:{}};
   return bodyViewState[key];
 }
-function setBodySearch(id,section,value){
-  const st=getBodyState(id,section);
-  st.search=String(value||'');
+function rerenderDetailState(id,{scrollTop,focusInputId,selectionStart,selectionEnd}={}){
   const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));
-  if(r)renderDetail(r);
+  if(!r)return;
+  renderDetail(r);
+  const detail=document.getElementById('detail');
+  if(detail&&Number.isFinite(scrollTop))detail.scrollTop=scrollTop;
+  if(focusInputId){
+    const input=document.getElementById(focusInputId);
+    if(input){
+      input.focus();
+      const start=Number.isFinite(selectionStart)?Math.min(selectionStart,input.value.length):input.value.length;
+      const end=Number.isFinite(selectionEnd)?Math.min(selectionEnd,input.value.length):start;
+      input.setSelectionRange(start,end);
+      if(detail&&Number.isFinite(scrollTop))detail.scrollTop=scrollTop;
+    }
+  }
+}
+function setBodySearch(id,section,input){
+  const st=getBodyState(id,section);
+  const detail=document.getElementById('detail');
+  st.search=String(input&&input.value||'');
+  rerenderDetailState(id,{
+    scrollTop:detail?detail.scrollTop:0,
+    focusInputId:bodySearchInputId(id,section),
+    selectionStart:input&&Number.isFinite(input.selectionStart)?input.selectionStart:null,
+    selectionEnd:input&&Number.isFinite(input.selectionEnd)?input.selectionEnd:null,
+  });
 }
 function toggleJsonNode(id,section,path){
   const st=getBodyState(id,section);
   st.collapsed[path]=!st.collapsed[path];
-  const r=allReqs.find(x=>normReqId(x.id)===normReqId(id));
-  if(r)renderDetail(r);
+  const detail=document.getElementById('detail');
+  rerenderDetailState(id,{scrollTop:detail?detail.scrollTop:0});
 }
 function jsonQuery(value){return String(value||'').trim().toLowerCase()}
 function jsonSummaryLabel(value){
@@ -1450,10 +1473,11 @@ function renderJsonBody(value,id,section){
   const st=getBodyState(id,section);
   const query=jsonQuery(st.search);
   const tree=renderJsonNode(value,{id,section,query,state:st},'root',0,null,true);
+  const inputId=bodySearchInputId(id,section);
   const status=query
     ? tree.matches+' match'+(tree.matches===1?'':'es')
     : jsonSummaryLabel(value);
-  return \`<div class="json-tools"><label class="json-search"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input class="json-input" placeholder="Search JSON body" value="\${esc(st.search||'')}" oninput="setBodySearch(\${jsArg(id)},\${jsArg(section)},this.value)"></label><div class="json-status">\${esc(status)}</div></div>\${tree.html?\`<div class="jtree">\${tree.html}</div>\`:'<div class="no-body">No matches in JSON body</div>'}\`;
+  return \`<div class="json-tools"><label class="json-search"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input id="\${esc(inputId)}" class="json-input" placeholder="Search JSON body" value="\${esc(st.search||'')}" oninput="setBodySearch(\${jsArg(id)},\${jsArg(section)},this)"></label><div class="json-status">\${esc(status)}</div></div>\${tree.html?\`<div class="jtree">\${tree.html}</div>\`:'<div class="no-body">No matches in JSON body</div>'}\`;
 }
 function buildCurlCommand(r){
   const flags=[];
