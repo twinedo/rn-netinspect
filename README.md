@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/banner.svg" alt="React Native NetInspect banner" width="100%" />
+  <img src="https://raw.githubusercontent.com/twinedo/rn-netinspect/6411701027319155e3ef817dc7a42a0d76fe8b34/assets/readme/banner.svg" alt="React Native NetInspect banner" width="100%" />
 </p>
 
 <h1 align="center">React Native NetInspect</h1>
@@ -21,10 +21,10 @@
 <table>
   <tr>
     <td width="50%">
-      <img src="./assets/readme/preview-dashboard.svg" alt="NetInspect dashboard preview" width="100%" />
+      <img src="https://raw.githubusercontent.com/twinedo/rn-netinspect/6411701027319155e3ef817dc7a42a0d76fe8b34/assets/readme/preview-dashboard.svg" alt="NetInspect dashboard preview" width="100%" />
     </td>
     <td width="50%">
-      <img src="./assets/readme/preview-routing.svg" alt="NetInspect device routing preview" width="100%" />
+      <img src="https://raw.githubusercontent.com/twinedo/rn-netinspect/6411701027319155e3ef817dc7a42a0d76fe8b34/assets/readme/preview-routing.svg" alt="NetInspect device routing preview" width="100%" />
     </td>
   </tr>
 </table>
