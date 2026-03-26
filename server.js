@@ -945,6 +945,7 @@ body{background:
 .sec-h{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none;background:rgba(30,38,48,.88);transition:background .1s}
 .sec-h:hover{background:var(--bg3)}
 .sec-t{font-size:11px;font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);display:flex;align-items:center;gap:5px}
+.sec-actions{display:flex;align-items:center;gap:8px}
 .sec-cnt{font-size:10px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:1px 5px;color:var(--text3)}
 .sec-chev{color:var(--text3);transition:transform .2s;font-size:11px}
 .sec-chev.open{transform:rotate(90deg)}
@@ -1322,7 +1323,7 @@ function pSec(path){
   try{const u=new URL('http://x'+path);const params=[...u.searchParams.entries()];
     return\`<div class="sec"><div class="sec-h" onclick="togSec(this)"><div class="sec-t">Query String<span class="sec-cnt">\${params.length}</span></div><span class="sec-chev open">▶</span></div>
       <div class="sec-b open">\${params.length===0?'<div class="no-body">No query params</div>':\`<table class="ptable">\${params.map(([k,v])=>\`<tr><td class="pk">\${esc(k)}</td><td class="pv">\${esc(v)}</td></tr>\`).join('')}</table>\`}</div></div>
-      <div class="sec"><div class="sec-h" onclick="togSec(this)"><div class="sec-t">Path</div><span class="sec-chev open">▶</span></div>
+      <div class="sec"><div class="sec-h" onclick="togSec(this)"><div class="sec-t">Path</div><div class="sec-actions"><button class="cbtn" onclick="event.stopPropagation();cpTxt(\${jsArg(u.pathname)})">Copy</button><span class="sec-chev open">▶</span></div></div>
       <div class="sec-b open"><div style="padding:8px 12px;font-family:var(--mono);font-size:10px;color:var(--text2)">\${esc(u.pathname)}</div></div></div>\`;
   }catch{return\`<div class="bv"><pre class="bpre">\${esc(path)}</pre></div>\`}}
 function tSec(r){
