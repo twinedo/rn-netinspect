@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  Dashboard on <code>:5555</code>. Optional proxy on <code>:8899</code>. Direct capture from <code>fetch</code> and <code>XMLHttpRequest</code>.
+  Dashboard on <code>:19826</code>. Optional proxy on <code>:8899</code>. Direct capture from <code>fetch</code> and <code>XMLHttpRequest</code>.
 </p>
 
 ## Preview
@@ -48,10 +48,24 @@ Add `installRNNetInspect()` once at app startup in development mode.
 
 ```js
 if (__DEV__) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { installRNNetInspect } = require("@twinedo/rn-netinspect");
   installRNNetInspect({ appName: "My RN App" });
 }
 ```
+
+If your project allows `require()` inside a dev-only guard, this is the recommended setup.
+
+If ESLint reports `@typescript-eslint/no-require-imports`, either keep the one-line disable above or use this fallback:
+
+```js
+if (__DEV__) {
+  void import("@twinedo/rn-netinspect").then(({ installRNNetInspect }) => {
+    installRNNetInspect({ appName: "My RN App" });
+  });
+}
+```
+
 Important:
 - Keep the `require("@twinedo/rn-netinspect")` call inside `if (__DEV__)`.
 - This is the recommended setup because the inspector stays development-only and should not be included in production builds.
@@ -61,7 +75,16 @@ If you already know the inspector URL for the current device, you can pass it ex
 ```js
 installRNNetInspect({
   appName: "My RN App",
-  inspectorUrl: "http://127.0.0.1:5555",
+  inspectorUrl: "http://127.0.0.1:19826",
+});
+```
+
+For Android emulator, use:
+
+```js
+installRNNetInspect({
+  appName: "My RN App",
+  inspectorUrl: "http://10.0.2.2:19826", // Android emulator reaches the host machine through 10.0.2.2.
 });
 ```
 
@@ -73,10 +96,22 @@ Run the dashboard/server on your computer:
 npx rn-netinspect-server
 ```
 
+Safe default behavior:
+- direct client capture is available immediately
+- iOS system proxy is manual
+- Android emulator proxy is manual
+- Android device `adb reverse` auto-connect is off by default
+
+If you want the server to auto-manage `adb reverse` for physical Android devices, start it with:
+
+```bash
+npx rn-netinspect-server --auto-connect
+```
+
 Then open:
 
 ```txt
-http://localhost:5555
+http://localhost:19826
 ```
 
 Start the server before launching or reloading the app when possible.
@@ -95,13 +130,13 @@ Use Expo's dev client and choose a Metro host mode that matches your device setu
 If you use Expo environment variables, a good pattern is:
 
 ```bash
-EXPO_PUBLIC_RN_NETINSPECT_URL=http://127.0.0.1:5555
+EXPO_PUBLIC_RN_NETINSPECT_URL=http://127.0.0.1:19826
 ```
 
 or for Wi-Fi:
 
 ```bash
-EXPO_PUBLIC_RN_NETINSPECT_URL=http://192.168.1.10:5555
+EXPO_PUBLIC_RN_NETINSPECT_URL=http://192.168.1.10:19826
 ```
 
 ### React Native CLI
@@ -117,11 +152,11 @@ Use the normal React Native flow for your platform:
 
 Use these URLs for each environment:
 
-- iOS Simulator: `http://127.0.0.1:5555`
-- Android Emulator: `http://10.0.2.2:5555`
-- Android real device over USB with `adb reverse`: `http://127.0.0.1:5555`
-- iPhone real device on Wi-Fi: `http://<your-computer-lan-ip>:5555`
-- Android real device on Wi-Fi: `http://<your-computer-lan-ip>:5555`
+- iOS Simulator: `http://127.0.0.1:19826`
+- Android Emulator: `http://10.0.2.2:19826`
+- Android real device over USB with `adb reverse`: `http://127.0.0.1:19826`
+- iPhone real device on Wi-Fi: `http://<your-computer-lan-ip>:19826`
+- Android real device on Wi-Fi: `http://<your-computer-lan-ip>:19826`
 
 If `inspectorUrl` is omitted, the client tries to infer the host automatically from Metro when possible.
 
@@ -152,11 +187,11 @@ npx react-native run-ios
 ```js
 installRNNetInspect({
   appName: "My RN App",
-  inspectorUrl: "http://127.0.0.1:5555",
+  inspectorUrl: "http://127.0.0.1:19826",
 });
 ```
 
-4. Open `http://localhost:5555` on your Mac.
+4. Open `http://localhost:19826` on your Mac.
 
 5. Trigger requests in the simulator.
 
@@ -191,24 +226,27 @@ npx react-native run-android
 ```js
 installRNNetInspect({
   appName: "My RN App",
-  inspectorUrl: "http://10.0.2.2:5555",
+  inspectorUrl: "http://10.0.2.2:19826", // Android emulator reaches the host machine through 10.0.2.2.
 });
 ```
 
-4. Open `http://localhost:5555` on your computer.
+4. Open `http://localhost:19826` on your computer.
 
 5. Trigger requests in the emulator.
 
 Important:
-- Android Emulator cannot use `127.0.0.1:5555` to reach your Mac.
-- Use `10.0.2.2:5555` for the direct client.
+- Android Emulator cannot use `127.0.0.1:19826` to reach your host machine.
+- Use `10.0.2.2:19826` for the direct client.
 
 ### About Android Emulator Proxy Mode
 
-The dashboard may also offer Android proxy automation for emulators.
+The dashboard may also offer Android proxy connect for emulators.
 That uses ADB to change Android global proxy settings on the emulator.
 
-This is emulator-safe, but it still changes device-wide settings inside that emulator instance.
+This is not the default path. Prefer direct client mode with `http://10.0.2.2:19826` first.
+
+Proxy mode changes device-wide settings inside that emulator instance, so it can interfere with Expo reload, browser access, and unrelated apps until cleared.
+
 If you use proxy mode and want to clear it later:
 
 ```bash
@@ -249,18 +287,18 @@ Use your usual device run flow, then make sure the app can reach the LAN IP.
 ```js
 installRNNetInspect({
   appName: "My RN App",
-  inspectorUrl: "http://192.168.1.10:5555",
+  inspectorUrl: "http://192.168.1.10:19826",
 });
 ```
 
 6. Run or reload the app on the iPhone.
 
-7. Open `http://localhost:5555` on your computer.
+7. Open `http://localhost:19826` on your computer.
 
 8. Trigger requests in the app.
 
 If it does not connect:
-- confirm the phone can open `http://192.168.1.10:5555` in Safari
+- confirm the phone can open `http://192.168.1.10:19826` in Safari
 - confirm your computer firewall allows the Node process
 - confirm both devices are on the same Wi-Fi
 
@@ -289,7 +327,7 @@ npx rn-netinspect-server
 4. Reverse the dashboard port from device to computer:
 
 ```bash
-adb reverse tcp:5555 tcp:5555
+adb reverse tcp:19826 tcp:19826
 ```
 
 5. If you also need Metro over USB, reverse Metro too:
@@ -315,17 +353,18 @@ Use your usual USB device run flow after `adb reverse` is active.
 ```js
 installRNNetInspect({
   appName: "My RN App",
-  inspectorUrl: "http://127.0.0.1:5555",
+  inspectorUrl: "http://127.0.0.1:19826",
 });
 ```
 
 8. Run or reload the app on the phone.
 
-9. Open `http://localhost:5555` on your computer.
+9. Open `http://localhost:19826` on your computer.
 
 Notes:
 - `adb reverse` only works while the device is attached to ADB.
 - This is the recommended setup for physical Android devices during development.
+- If you want the server to auto-connect `adb reverse` during scans, use `npx rn-netinspect-server --auto-connect`.
 
 ### Option B: Wi-Fi + LAN IP
 
@@ -358,7 +397,7 @@ Use your normal Wi-Fi device flow.
 ```js
 installRNNetInspect({
   appName: "My RN App",
-  inspectorUrl: "http://192.168.1.10:5555",
+  inspectorUrl: "http://192.168.1.10:19826",
 });
 ```
 
@@ -367,7 +406,7 @@ installRNNetInspect({
 7. Verify the phone browser can open:
 
 ```txt
-http://192.168.1.10:5555
+http://192.168.1.10:19826
 ```
 
 ## Very Important: Android Proxy Warning
@@ -383,6 +422,8 @@ That can affect the whole device, not just your app.
 If the proxy is wrong or unreachable, the device may lose internet access until the settings are cleared.
 
 Only use device-wide Android proxy settings if you explicitly want that behavior and understand the impact.
+
+`rn-netinspect-server` does not enable Android emulator proxy automatically by default.
 
 To clear them:
 
@@ -402,7 +443,7 @@ Also verify the current Wi-Fi network on the phone has `Proxy = None`.
 
 ```js
 installRNNetInspect({
-  inspectorUrl: "http://127.0.0.1:5555",
+  inspectorUrl: "http://127.0.0.1:19826",
   appName: "My RN App",
   captureBodies: true,
   patchFetch: true,
@@ -437,7 +478,7 @@ POST /api/register
 
 That is proxy configuration, not the direct client.
 
-- On an emulator, prefer the direct client URL `http://10.0.2.2:5555`
+- On an emulator, prefer the direct client URL `http://10.0.2.2:19826`
 - On a real device, prefer `adb reverse` or a LAN IP
 - Clear any old Android global proxy settings if necessary
 

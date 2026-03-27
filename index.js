@@ -11,7 +11,7 @@ const ANSI = {
   cyan: '\x1b[96m',
   yellow: '\x1b[93m',
 };
-const DASHBOARD_PORT = 5555;
+const DASHBOARD_PORT = 19826;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
 function supportsColor() {
@@ -135,12 +135,12 @@ function resolveInspectorTargets(explicitUrl) {
     explicit,
     override,
     !sourceLooksLoopback ? withDashboardPort(sourceHost) : '',
-    platform === 'android' ? 'http://127.0.0.1:5555' : '',
-    sourceLooksLoopback ? 'http://localhost:5555' : '',
-    platform === 'android' ? 'http://10.0.2.2:5555' : '',
-    platform === 'android' ? 'http://10.0.3.2:5555' : '',
-    platform !== 'android' ? 'http://127.0.0.1:5555' : '',
-    platform !== 'android' ? 'http://localhost:5555' : '',
+    platform === 'android' ? 'http://127.0.0.1:19826' : '',
+    sourceLooksLoopback ? 'http://localhost:19826' : '',
+    platform === 'android' ? 'http://10.0.2.2:19826' : '',
+    platform === 'android' ? 'http://10.0.3.2:19826' : '',
+    platform !== 'android' ? 'http://127.0.0.1:19826' : '',
+    platform !== 'android' ? 'http://localhost:19826' : '',
   ]);
 
   return {
@@ -177,7 +177,7 @@ function installRNNetInspect({
     sourceLooksLoopback,
     usedFallbackOnly,
   } = resolveInspectorTargets(inspectorUrl);
-  let activeBaseUrl = inspectorBaseUrls[0] || 'http://127.0.0.1:5555';
+  let activeBaseUrl = inspectorBaseUrls[0] || 'http://127.0.0.1:19826';
   let announcedBaseUrl = '';
   let didWarnMissingServer = false;
   let resolveBaseUrlPromise = null;
@@ -205,7 +205,7 @@ function installRNNetInspect({
     didWarnMissingServer = true;
     const detail = lastHealthError ? ` Last error: ${lastHealthError}.` : '';
     const platformHint = platform === 'android' && sourceLooksLoopback
-      ? ' If this is a physical Android device, start `rn-netinspect-server` while the device is attached so it can set up `adb reverse tcp:5555 tcp:5555`.'
+      ? ' If this is a physical Android device, start `rn-netinspect-server` while the device is attached so it can set up `adb reverse tcp:19826 tcp:19826`.'
       : platform === 'ios'
         ? ' If this is a physical iPhone, pass `inspectorUrl` with your computer LAN IP when Metro is not exposing a LAN host.'
         : '';
@@ -219,7 +219,7 @@ function installRNNetInspect({
     inspectorWarn(
       'Metro host could not be detected automatically. ' +
       'Simulator and emulator fallbacks will be tried automatically. ' +
-      'Physical iPhone devices should pass inspectorUrl like http://<your-computer-lan-ip>:5555 if Metro is not using a LAN host.'
+      'Physical iPhone devices should pass inspectorUrl like http://<your-computer-lan-ip>:19826 if Metro is not using a LAN host.'
     );
   }
 
