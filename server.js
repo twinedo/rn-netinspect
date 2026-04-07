@@ -921,6 +921,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   --accent:#00d4ff;--green:#00e676;--red:#ff4444;
   --orange:#ff9800;--yellow:#ffeb3b;--purple:#bb86fc;--pink:#f48fb1;
   --mono:'JetBrains Mono',monospace;--sans:'Space Grotesk',sans-serif;
+  --sidebar-width:272px;--request-list-width:42%;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:
@@ -948,10 +949,10 @@ body{background:
 .btn.danger:hover{border-color:var(--red);color:var(--red)}
 
 /* ── Main layout ── */
-.layout{display:flex;flex:1;overflow:hidden}
+.layout{display:flex;flex:1;overflow:hidden;min-width:0}
 
 /* ── Sidebar ── */
-.sidebar{width:272px;background:rgba(30,38,48,.92);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sidebar{width:var(--sidebar-width);min-width:220px;max-width:420px;background:rgba(30,38,48,.92);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
 .sb-head{padding:10px 12px;font-size:11px;font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
 /* toggle */
 .toggle-wrap{display:flex;align-items:center;gap:5px;cursor:pointer}
@@ -991,7 +992,7 @@ body{background:
 .sb-divider{border-bottom:1px solid var(--border)}
 
 /* ── Right pane ── */
-.right{display:flex;flex-direction:column;flex:1;overflow:hidden}
+.right{display:flex;flex-direction:column;flex:1;overflow:hidden;min-width:0}
 
 /* ── Filter bar ── */
 .filterbar{display:flex;align-items:center;gap:9px;padding:10px 12px;background:rgba(30,38,48,.92);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -1010,12 +1011,22 @@ body{background:
 .mf-btn.on.DELETE{background:rgba(255,68,68,.1);border-color:var(--red);color:var(--red)}
 
 /* ── Content area ── */
-.content{display:flex;flex:1;overflow:hidden}
+.content{display:flex;flex:1;overflow:hidden;min-width:0}
+
+/* ── Splitters ── */
+.splitter{position:relative;flex:0 0 10px;cursor:col-resize;background:transparent;display:flex;align-items:stretch;justify-content:center;user-select:none;touch-action:none}
+.splitter::before{content:'';width:1px;background:var(--border);transition:background .15s,box-shadow .15s}
+.splitter::after{content:'';position:absolute;inset:0}
+.splitter:hover::before,.splitter.dragging::before{background:var(--accent);box-shadow:0 0 10px rgba(0,212,255,.32)}
 
 /* ── Request list ── */
-.req-list{width:42%;min-width:340px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:rgba(22,27,34,.55)}
+.req-pane{position:relative;width:var(--request-list-width);min-width:320px;max-width:70%;flex-shrink:0;background:rgba(22,27,34,.55)}
+.req-list{width:100%;height:100%;border-right:1px solid var(--border);overflow-y:auto}
 .req-list::-webkit-scrollbar{width:3px}
 .req-list::-webkit-scrollbar-thumb{background:var(--border2)}
+.pane-handle{position:absolute;top:0;right:-5px;bottom:0;width:10px;cursor:col-resize;background:transparent;user-select:none;touch-action:none;z-index:3}
+.pane-handle::before{content:'';position:absolute;top:0;bottom:0;left:50%;width:1px;transform:translateX(-50%);background:var(--border);transition:background .15s,box-shadow .15s}
+.pane-handle:hover::before,.pane-handle.dragging::before{background:var(--accent);box-shadow:0 0 10px rgba(0,212,255,.32)}
 .req-item{display:flex;align-items:center;gap:9px;padding:12px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;position:relative;overflow:hidden}
 .req-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:transparent;transition:background .15s}
 .req-item:hover{background:var(--bg2)}
@@ -1055,7 +1066,7 @@ body{background:
 .no-res{padding:36px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--text3)}
 
 /* ── Detail ── */
-.detail{flex:1;overflow-y:auto;background:rgba(22,27,34,.35);display:flex;flex-direction:column}
+.detail{flex:1;min-width:320px;overflow-y:auto;background:rgba(22,27,34,.35);display:flex;flex-direction:column}
 .detail::-webkit-scrollbar{width:3px}
 .detail::-webkit-scrollbar-thumb{background:var(--border2)}
 .detail-mobilebar{display:none;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);background:rgba(30,38,48,.96);position:sticky;top:0;z-index:2}
@@ -1155,9 +1166,12 @@ body{background:
   .topbar-right{width:100%;justify-content:flex-end}
   .layout{min-height:0}
   .sidebar{display:none}
-  .req-list{width:100%;min-width:0;border-right:none}
+  .splitter{display:none}
+  .req-pane{width:100%;min-width:0;max-width:none}
+  .req-list{border-right:none}
+  .pane-handle{display:none}
   .detail{display:none}
-  body.compact-detail-open .req-list{display:none}
+  body.compact-detail-open .req-pane{display:none}
   body.compact-detail-open .detail{display:flex;width:100%}
   body.compact-detail-open .detail-mobilebar{display:flex}
 }
@@ -1209,6 +1223,7 @@ body{background:
       </div>
     </div>
   </div>
+  <div class="splitter" id="sidebarSplitter" aria-hidden="true"></div>
 
   <!-- Right -->
   <div class="right">
@@ -1227,7 +1242,10 @@ body{background:
       </div>
     </div>
     <div class="content">
-      <div class="req-list" id="reqList"></div>
+      <div class="req-pane">
+        <div class="req-list" id="reqList"></div>
+        <div class="pane-handle" id="reqDetailHandle" aria-hidden="true"></div>
+      </div>
       <div class="detail" id="detail">
           <div class="empty-st">
           <div class="empty-icon">🔍</div>
@@ -1252,6 +1270,12 @@ body{background:
 <script>
 let allReqs=[], selId=null, activeM='ALL', searchQ='', paused=false, tabState={}, curlState={}, bodyViewState={}, autoOn=false, ws, maxT=1;
 const COMPACT_BREAKPOINT=1180;
+const RESIZE_STORAGE_KEY='rn-netinspect-layout-widths';
+const DEFAULT_LAYOUT_WIDTHS={sidebar:272,list:42};
+const MIN_SIDEBAR_WIDTH=220;
+const MAX_SIDEBAR_WIDTH=420;
+const MIN_REQ_LIST_WIDTH=320;
+const MIN_DETAIL_WIDTH=320;
 
 function normReqId(id){return String(id)}
 function isCompactLayout(){return window.innerWidth<=COMPACT_BREAKPOINT}
@@ -1260,6 +1284,102 @@ function closeDetailPane(){document.body.classList.remove('compact-detail-open')
 function syncLayoutMode(){
   document.body.classList.toggle('compact-layout',isCompactLayout());
   if(!isCompactLayout()||!selId)document.body.classList.remove('compact-detail-open');
+}
+function clamp(num,min,max){return Math.min(max,Math.max(min,num))}
+function readLayoutWidths(){
+  try{
+    const raw=window.localStorage.getItem(RESIZE_STORAGE_KEY);
+    if(!raw)return{...DEFAULT_LAYOUT_WIDTHS};
+    const parsed=JSON.parse(raw);
+    return{
+      sidebar:Number.isFinite(parsed&&parsed.sidebar)?parsed.sidebar:DEFAULT_LAYOUT_WIDTHS.sidebar,
+      list:Number.isFinite(parsed&&parsed.list)?parsed.list:DEFAULT_LAYOUT_WIDTHS.list,
+    };
+  }catch{
+    return{...DEFAULT_LAYOUT_WIDTHS};
+  }
+}
+function saveLayoutWidths(widths){
+  try{window.localStorage.setItem(RESIZE_STORAGE_KEY,JSON.stringify(widths));}catch{}
+}
+function setSidebarWidth(width,{persist=true}={}){
+  const layout=document.querySelector('.layout');
+  if(!layout)return;
+  const maxWidth=Math.max(MIN_SIDEBAR_WIDTH,Math.min(MAX_SIDEBAR_WIDTH,layout.clientWidth-480));
+  const safeWidth=clamp(width,MIN_SIDEBAR_WIDTH,maxWidth);
+  document.documentElement.style.setProperty('--sidebar-width',safeWidth+'px');
+  if(persist){
+    const widths=readLayoutWidths();
+    widths.sidebar=safeWidth;
+    saveLayoutWidths(widths);
+  }
+}
+function setRequestListWidth(percent,{persist=true}={}){
+  const content=document.querySelector('.content');
+  if(!content)return;
+  const contentWidth=Math.max(content.clientWidth,1);
+  const minPercent=(MIN_REQ_LIST_WIDTH/contentWidth)*100;
+  const maxPercent=((contentWidth-MIN_DETAIL_WIDTH)/contentWidth)*100;
+  const safePercent=clamp(percent,minPercent,Math.max(minPercent,maxPercent));
+  document.documentElement.style.setProperty('--request-list-width',safePercent+'%');
+  if(persist){
+    const widths=readLayoutWidths();
+    widths.list=safePercent;
+    saveLayoutWidths(widths);
+  }
+}
+function applyStoredLayoutWidths(){
+  const widths=readLayoutWidths();
+  setSidebarWidth(widths.sidebar,{persist:false});
+  setRequestListWidth(widths.list,{persist:false});
+}
+function attachHorizontalResize(handleId,onMove){
+  const handle=document.getElementById(handleId);
+  if(!handle)return;
+  let active=false;
+  const move=e=>{
+    if(!active||isCompactLayout())return;
+    onMove(e);
+  };
+  const stop=e=>{
+    if(!active)return;
+    active=false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+    if(e&&typeof handle.releasePointerCapture==='function'){
+      try{handle.releasePointerCapture(e.pointerId)}catch{}
+    }
+    window.removeEventListener('pointermove',move);
+    window.removeEventListener('pointerup',stop);
+  };
+  handle.addEventListener('pointerdown',e=>{
+    if(isCompactLayout())return;
+    active=true;
+    handle.classList.add('dragging');
+    document.body.style.cursor='col-resize';
+    document.body.style.userSelect='none';
+    if(typeof handle.setPointerCapture==='function'){
+      try{handle.setPointerCapture(e.pointerId)}catch{}
+    }
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',stop);
+  });
+}
+function initResizablePanes(){
+  applyStoredLayoutWidths();
+  attachHorizontalResize('sidebarSplitter',e=>{
+    const layout=document.querySelector('.layout');
+    if(!layout)return;
+    const rect=layout.getBoundingClientRect();
+    setSidebarWidth(e.clientX-rect.left);
+  });
+  attachHorizontalResize('reqDetailHandle',e=>{
+    const content=document.querySelector('.content');
+    if(!content)return;
+    const rect=content.getBoundingClientRect();
+    setRequestListWidth(((e.clientX-rect.left)/rect.width)*100);
+  });
 }
 
 function connectWS(){
@@ -1785,7 +1905,9 @@ function cpTxt(t){navigator.clipboard.writeText(t).then(()=>showToast('Copied!')
 let toastT;
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200)}
 window.addEventListener('resize',syncLayoutMode);
+window.addEventListener('resize',applyStoredLayoutWidths);
 syncLayoutMode();
+initResizablePanes();
 connectWS();
 </script>
 </body>
