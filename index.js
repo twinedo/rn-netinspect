@@ -165,6 +165,7 @@ function installRNNetInspect({
   captureBodies = true,
   patchFetch = true,
   patchXHR = true,
+  patchConsole = true,
 } = {}) {
   if (global.__RN_INSPECTOR_UNINSTALL__) return global.__RN_INSPECTOR_UNINSTALL__;
 
@@ -441,10 +442,133 @@ function installRNNetInspect({
     global.XMLHttpRequest = InstrumentedXHR;
   }
 
+  // ─── Console patching ─────────────────────────────────────────────────────
+  let originalConsoleLog = null;
+  let originalConsoleWarn = null;
+  let originalConsoleError = null;
+  let consoleFlushTimer = null;
+
+  const serializeConsoleArg = arg => {
+    if (typeof arg === 'string') return arg;
+    if (arg === null) return 'null';
+    if (arg === undefined) return 'undefined';
+    if (typeof arg === 'function') return arg.name ? `[Function ${arg.name}]` : '[Function]';
+    if (typeof arg === 'symbol') return arg.toString();
+    if (typeof arg === 'bigint') return arg.toString();
+    if (typeof arg === 'object') {
+      try {
+        const str = JSON.stringify(arg, null, 2);
+        return str || String(arg);
+      } catch { return String(arg); }
+    }
+    return String(arg);
+  };
+
+  const consoleLogBuffer = [];
+  const CONSOLE_BATCH_INTERVAL = 500;
+  const CONSOLE_BATCH_THRESHOLD = 50;
+
+  const flushConsoleLogs = async () => {
+    if (consoleLogBuffer.length === 0) return;
+    if (!originalFetch) return;
+    const baseUrl = announcedBaseUrl || await ensureReachableBaseUrl() || activeBaseUrl;
+    if (!baseUrl) return;
+    const batch = consoleLogBuffer.splice(0, CONSOLE_BATCH_THRESHOLD);
+    try {
+      await originalFetch(`${baseUrl}/api/console/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: batch, appName, platform, runtimeHost, installId }),
+      }).catch(() => {});
+    } catch {}
+    if (consoleLogBuffer.length > 0) {
+      void flushConsoleLogs();
+    }
+  };
+
+  const scheduleConsoleFlush = () => {
+    if (consoleFlushTimer) return;
+    consoleFlushTimer = setTimeout(() => {
+      consoleFlushTimer = null;
+      void flushConsoleLogs();
+    }, CONSOLE_BATCH_INTERVAL);
+  };
+
+  const bufferConsoleLog = (level, args) => {
+    try {
+      if (args.length === 0) return;
+      if (consoleLogBuffer.length >= CONSOLE_BATCH_THRESHOLD) {
+        scheduleConsoleFlush();
+      }
+      const entry = {
+        level,
+        messages: [],
+        timestamp: Date.now(),
+      };
+      for (let i = 0; i < args.length; i++) {
+        entry.messages.push(serializeConsoleArg(args[i]));
+      }
+      consoleLogBuffer.push(entry);
+      scheduleConsoleFlush();
+    } catch {}
+  };
+
+  if (patchConsole && typeof console !== 'undefined') {
+    originalConsoleLog = console.log.bind(console);
+    originalConsoleWarn = console.warn.bind(console);
+    originalConsoleError = console.error.bind(console);
+
+    const patchedLog = function(...args) {
+      if (!global.__RN_INSPECTOR_PATCHING_CONSOLE__) {
+        global.__RN_INSPECTOR_PATCHING_CONSOLE__ = true;
+        bufferConsoleLog('log', args);
+        global.__RN_INSPECTOR_PATCHING_CONSOLE__ = false;
+      }
+      return originalConsoleLog.apply(console, args);
+    };
+
+    const patchedWarn = function(...args) {
+      if (!global.__RN_INSPECTOR_PATCHING_CONSOLE__) {
+        global.__RN_INSPECTOR_PATCHING_CONSOLE__ = true;
+        bufferConsoleLog('warn', args);
+        global.__RN_INSPECTOR_PATCHING_CONSOLE__ = false;
+      }
+      return originalConsoleWarn.apply(console, args);
+    };
+
+    const patchedError = function(...args) {
+      if (!global.__RN_INSPECTOR_PATCHING_CONSOLE__) {
+        global.__RN_INSPECTOR_PATCHING_CONSOLE__ = true;
+        bufferConsoleLog('error', args);
+        global.__RN_INSPECTOR_PATCHING_CONSOLE__ = false;
+      }
+      return originalConsoleError.apply(console, args);
+    };
+
+    global.__RN_INSPECTOR_ORIGINAL_CONSOLE__ = {
+      log: originalConsoleLog,
+      warn: originalConsoleWarn,
+      error: originalConsoleError,
+    };
+
+    console.log = patchedLog;
+    console.warn = patchedWarn;
+    console.error = patchedError;
+  }
+
   const uninstall = () => {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    if (consoleFlushTimer) { clearTimeout(consoleFlushTimer); consoleFlushTimer = null; }
+    void flushConsoleLogs();
     if (originalFetch) global.fetch = originalFetch;
     if (OriginalXHR) global.XMLHttpRequest = OriginalXHR;
+    if (patchConsole) {
+      if (originalConsoleLog) console.log = originalConsoleLog;
+      if (originalConsoleWarn) console.warn = originalConsoleWarn;
+      if (originalConsoleError) console.error = originalConsoleError;
+      delete global.__RN_INSPECTOR_ORIGINAL_CONSOLE__;
+      delete global.__RN_INSPECTOR_PATCHING_CONSOLE__;
+    }
     delete global.__RN_INSPECTOR_UNINSTALL__;
   };
 

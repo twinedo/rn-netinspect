@@ -151,15 +151,83 @@ installRNNetInspect({
   captureBodies: true,
   patchFetch: true,
   patchXHR: true,
+  patchConsole: true,    // capture console.log/warn/error (default: true)
+});
+```
+
+## Console Viewer
+
+React Native NetInspect can also capture `console.log`, `console.warn`, and `console.error` calls from your app and display them in the dashboard.
+
+### How it works
+
+When enabled (default), the library patches `console.log`, `console.warn`, and `console.error` at the global level. Each call is buffered and sent to the server in batches (every 500ms or when 50 logs accumulate), then broadcast live to the dashboard via WebSocket.
+
+### Using the Console Viewer
+
+1. Open the dashboard at `http://localhost:19826`
+2. Click **📋 Console** in the topbar to switch from Network view to Console view
+3. Console logs from your app appear in real-time with colored level badges (cyan=log, orange=warn, red=error)
+4. Use the filter buttons (ALL / LOG / WARN / ERROR) and search box to find specific messages
+5. Click the **📋** copy button on any log entry to copy its text
+6. Toggle **Auto-scroll** to follow new logs as they arrive
+
+### Batching
+
+Console logs are batched on the device to reduce HTTP requests:
+- Logs are buffered and flushed every **500ms**
+- Up to **50 logs** per batch request
+- Pending logs are flushed when the inspector is uninstalled
+
+### Disable console capture
+
+```js
+installRNNetInspect({
+  patchConsole: false,  // disable console.log/warn/error capture
 });
 ```
 
 ## Server API
 
-The client sends events to:
+### Network events
+
+The client sends network events to:
 
 ```txt
 POST /api/ingest
+```
+
+### Console events
+
+Console log entries are sent in batches:
+
+```txt
+POST /api/console/ingest
+```
+
+Body format (batch):
+```json
+{
+  "entries": [
+    { "level": "log", "messages": ["Hello", "world"], "timestamp": 1700000000000 },
+    { "level": "warn", "messages": ["Warning message"], "timestamp": 1700000001000 }
+  ],
+  "appName": "My RN App",
+  "platform": "ios",
+  "runtimeHost": "localhost",
+  "installId": "install-..."
+}
+```
+
+Body format (single entry, backward compatible):
+```json
+{
+  "level": "log",
+  "messages": ["Hello", "world"],
+  "appName": "My RN App",
+  "platform": "ios",
+  "runtimeHost": "localhost"
+}
 ```
 
 The dashboard also uses:
@@ -167,6 +235,7 @@ The dashboard also uses:
 ```txt
 GET  /api/health
 POST /api/register
+POST /api/console/clear
 ```
 
 ## Troubleshooting

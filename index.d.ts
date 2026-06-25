@@ -4,6 +4,7 @@ export type InstallRNNetInspectOptions = {
   captureBodies?: boolean;
   patchFetch?: boolean;
   patchXHR?: boolean;
+  patchConsole?: boolean;
 };
 
 export declare function installRNNetInspect(

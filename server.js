@@ -149,7 +149,8 @@ function isInspectorControlRequest(target) {
   const isControlPath = (
     path === '/api/health' ||
     path === '/api/register' ||
-    path === '/api/ingest'
+    path === '/api/ingest' ||
+    path === '/api/console/ingest'
   );
   return isDashboardHost && isControlPath;
 }
@@ -266,6 +267,69 @@ function ingestDirectEvent(payload, req) {
   }
 
   return { ok: false, error: 'Unsupported phase' };
+}
+
+// ─── Console log store ────────────────────────────────────────────────────────
+const consoleLogs = [];
+const MAX_CONSOLE_LOGS = 500;
+let consoleLogIdCounter = 0;
+
+function addConsoleLog(entry) {
+  consoleLogs.unshift(entry);
+  if (consoleLogs.length > MAX_CONSOLE_LOGS) consoleLogs.pop();
+  broadcastWS({ type: 'console', data: entry });
+}
+
+function ingestConsoleLog(payload, req) {
+  // Handle batch entries (array) or single entry
+  if (payload && Array.isArray(payload.entries)) {
+    const entries = payload.entries;
+    if (entries.length === 0) return { ok: true, count: 0 };
+    const ids = [];
+    registerAppClient(payload, req);
+    for (const item of entries) {
+      const level = item && item.level;
+      const messages = item && item.messages;
+      if (!level || !messages || !Array.isArray(messages)) continue;
+      if (!['log', 'warn', 'error'].includes(level)) continue;
+      const entry = {
+        id: ++consoleLogIdCounter,
+        level,
+        messages: messages.map(m => typeof m === 'string' ? m : String(m)),
+        timestamp: item.timestamp || Date.now(),
+        appName: payload.appName || 'React Native',
+        platform: payload.platform || 'unknown',
+        runtimeHost: payload.runtimeHost || 'unknown',
+      };
+      addConsoleLog(entry);
+      ids.push(entry.id);
+    }
+    return { ok: true, count: ids.length, ids };
+  }
+
+  const level = payload && payload.level;
+  const messages = payload && payload.messages;
+  if (!level || !messages || !Array.isArray(messages)) {
+    return { ok: false, error: 'level and messages[] are required' };
+  }
+  if (!['log', 'warn', 'error'].includes(level)) {
+    return { ok: false, error: 'level must be log, warn, or error' };
+  }
+
+  registerAppClient(payload, req);
+
+  const entry = {
+    id: ++consoleLogIdCounter,
+    level,
+    messages: messages.map(m => typeof m === 'string' ? m : String(m)),
+    timestamp: Date.now(),
+    appName: payload.appName || 'React Native',
+    platform: payload.platform || 'unknown',
+    runtimeHost: payload.runtimeHost || 'unknown',
+  };
+
+  addConsoleLog(entry);
+  return { ok: true, id: entry.id };
 }
 
 // ─── Device registry ──────────────────────────────────────────────────────────
@@ -889,8 +953,9 @@ function upgradeToWS(req, socket) {
   socket.on('error', () => wsClients.delete(socket));
   socket.on('close', () => wsClients.delete(socket));
   wsClients.add(socket);
-  sendWS(socket, { type: 'init',    data: requests.slice(0, 100) });
-  sendWS(socket, { type: 'devices', data: { devices, rnProcesses: [...listConnectedApps(), ...rnProcesses], autoConnectEnabled } });
+  sendWS(socket, { type: 'init',       data: requests.slice(0, 100) });
+  sendWS(socket, { type: 'console-init', data: consoleLogs.slice(0, 100) });
+  sendWS(socket, { type: 'devices',    data: { devices, rnProcesses: [...listConnectedApps(), ...rnProcesses], autoConnectEnabled } });
 }
 
 function encodeWS(data) {
@@ -1004,6 +1069,8 @@ body{background:
 .mf-btn{font-family:var(--mono);font-size:11px;font-weight:700;padding:5px 9px;border-radius:5px;border:1px solid var(--border);cursor:pointer;letter-spacing:.4px;background:var(--bg4);color:var(--text2);transition:all .15s}
 .mf-btn:hover{color:var(--text2)}
 .mf-btn.on.ALL{background:rgba(255,255,255,.06);border-color:var(--text2);color:var(--text)}
+.mf-btn.on.ios{background:rgba(0,212,255,.1);border-color:var(--accent);color:var(--accent)}
+.mf-btn.on.android{background:rgba(0,230,118,.1);border-color:var(--green);color:var(--green)}
 .mf-btn.on.GET{background:rgba(0,230,118,.1);border-color:var(--green);color:var(--green)}
 .mf-btn.on.POST{background:rgba(0,212,255,.1);border-color:var(--accent);color:var(--accent)}
 .mf-btn.on.PUT{background:rgba(255,152,0,.1);border-color:var(--orange);color:var(--orange)}
@@ -1181,6 +1248,40 @@ body{background:
   .mf{flex-wrap:wrap}
   .tab{padding:10px 10px;font-size:11px}
 }
+
+/* ── Console viewer ── */
+.console-view{display:none;flex-direction:column;flex:1;overflow:hidden;min-width:0}
+.console-view.active{display:flex}
+.console-filterbar{display:flex;align-items:center;gap:9px;padding:10px 12px;background:rgba(30,38,48,.92);border-bottom:1px solid var(--border);flex-shrink:0}
+.console-list{flex:1;overflow-y:auto;background:rgba(22,27,34,.55)}
+.console-list::-webkit-scrollbar{width:3px}
+.console-list::-webkit-scrollbar-thumb{background:var(--border2)}
+.console-item{display:flex;align-items:flex-start;gap:9px;padding:8px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px;line-height:1.6;transition:background .1s}
+.console-item:hover{background:var(--bg2)}
+.console-item.new-in{animation:sIn .2s ease}
+.console-level{font-size:11px;font-weight:700;letter-spacing:.4px;padding:2px 6px;border-radius:4px;flex-shrink:0;min-width:44px;text-align:center;margin-top:2px}
+.console-level.log{background:rgba(0,212,255,.12);color:var(--accent)}
+.console-level.warn{background:rgba(255,152,0,.12);color:var(--orange)}
+.console-level.error{background:rgba(255,68,68,.12);color:var(--red)}
+.console-time{color:var(--text3);flex-shrink:0;font-size:11px;margin-top:2px;min-width:70px}
+.console-msg{color:var(--text);white-space:pre-wrap;word-break:break-word;flex:1;min-width:0}
+.console-empty{padding:48px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--text3)}
+.no-console-res{padding:36px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--text3)}
+.view-switcher{display:flex;gap:2px;background:rgba(49,60,73,.9);border:1px solid var(--border2);border-radius:6px;padding:2px;flex-shrink:0}
+.view-btn{padding:5px 10px;font-size:12px;font-family:var(--mono);border:none;border-radius:4px;cursor:pointer;background:transparent;color:var(--text3);transition:all .15s}
+.view-btn.active{background:var(--bg3);color:var(--accent)}
+.view-btn:hover:not(.active){color:var(--text2)}
+.console-item .cl-copy{opacity:0;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;font-family:var(--mono);padding:2px 5px;border-radius:3px;transition:all .15s;flex-shrink:0;margin-top:2px}
+.console-item:hover .cl-copy{opacity:1}
+.console-item .cl-copy:hover{color:var(--accent);background:var(--bg4)}
+.console-item .cl-copy.copied{opacity:1;color:var(--green)}
+.auto-scroll-wrap{display:flex;align-items:center;gap:5px;cursor:pointer;flex-shrink:0}
+.auto-scroll-wrap input[type=checkbox]{accent-color:var(--accent);cursor:pointer}
+.auto-scroll-lbl{font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap}
+.cl-filter-select{background:var(--bg4);border:1px solid var(--border2);border-radius:5px;color:var(--text2);font-family:var(--mono);font-size:11px;padding:5px 7px;outline:none;cursor:pointer;transition:border-color .15s}
+.cl-filter-select:hover,.cl-filter-select:focus{border-color:var(--accent);color:var(--text)}
+.cl-filter-select option{background:var(--bg2);color:var(--text)}
+.console-app-badge{font-size:10px;color:var(--purple);font-family:var(--mono);padding:1px 5px;border-radius:3px;background:rgba(187,134,252,.08);border:1px solid rgba(187,134,252,.15);flex-shrink:0;margin-top:2px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -1190,6 +1291,11 @@ body{background:
   <div class="sep"></div>
   <div class="badge">Proxy <span>:${PROXY_PORT}</span></div>
   <div class="badge">Dashboard <span>:${DASHBOARD_PORT}</span></div>
+  <div class="sep"></div>
+  <div class="view-switcher">
+    <button class="view-btn active" id="viewNetwork" onclick="switchView('network')">📡 Network</button>
+    <button class="view-btn" id="viewConsole" onclick="switchView('console')">📋 Console</button>
+  </div>
   <div class="sep"></div>
   <div class="ws-dot" id="wsDot"></div>
   <div class="ws-lbl" id="wsLbl">connecting...</div>
@@ -1261,6 +1367,38 @@ body{background:
             <span class="k">installRNNetInspect</span>({ <span class="n">inspectorUrl</span>: <span class="s">'http://192.168.1.10:19826'</span> })
           </div>
         </div>
+      </div>
+    </div>
+    <div class="console-view" id="consoleView">
+      <div class="console-filterbar">
+        <div class="mf">
+          <button class="mf-btn on ALL" data-cl="ALL" onclick="filterCL(this)">ALL</button>
+          <button class="mf-btn LOG" data-cl="LOG" onclick="filterCL(this)">LOG</button>
+          <button class="mf-btn WARN" data-cl="WARN" onclick="filterCL(this)">WARN</button>
+          <button class="mf-btn ERROR" data-cl="ERROR" onclick="filterCL(this)">ERROR</button>
+        </div>
+        <div class="mf">
+          <span style="color:var(--text3);font-family:var(--mono);font-size:10px;letter-spacing:.3px;padding:5px 2px 5px 6px">📱</span>
+          <button class="mf-btn on ALL" data-clp="ALL" onclick="filterPlatform(this)">ALL</button>
+          <button class="mf-btn ios" data-clp="ios" onclick="filterPlatform(this)">iOS</button>
+          <button class="mf-btn android" data-clp="android" onclick="filterPlatform(this)">Android</button>
+        </div>
+        <select class="cl-filter-select" id="appFilter" onchange="filterApp()">
+          <option value="ALL">All Apps</option>
+        </select>
+        <div class="sw" style="max-width:180px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input class="si" id="clSearch" placeholder="Filter messages..." oninput="applyCLFilter()"/>
+        </div>
+        <div class="auto-scroll-wrap" onclick="toggleAutoScroll()">
+          <input type="checkbox" id="autoScrollChk" checked/>
+          <span class="auto-scroll-lbl">Auto-scroll</span>
+        </div>
+        <div class="counter"><b id="clCount">0</b> logs</div>
+        <button class="btn danger" onclick="clearConsole()">✕ Clear</button>
+      </div>
+      <div class="console-list" id="consoleList">
+        <div class="console-empty">No console logs received yet.<br>Trigger console.log/warn/error in your app to see them here.</div>
       </div>
     </div>
   </div>
@@ -1397,6 +1535,8 @@ function connectWS(){
       const i=allReqs.findIndex(r=>r.id===msg.data.id);
       if(i!==-1){allReqs[i]=msg.data;refreshItem(msg.data);if(normReqId(selId)===normReqId(msg.data.id))renderDetail(msg.data)}
     }
+    else if(msg.type==='console-init'){allLogs=msg.data;renderLogs()}
+    else if(msg.type==='console'){addLog(msg.data)}
     else if(msg.type==='devices')renderDevices(msg.data);
     upCount();
   };
@@ -1909,6 +2049,159 @@ window.addEventListener('resize',applyStoredLayoutWidths);
 syncLayoutMode();
 initResizablePanes();
 connectWS();
+
+// ─── Console viewer ────────────────────────────────────────────────────────────
+let allLogs=[], activeCL='ALL', clSearchQ='', activePlatform='ALL', activeApp='ALL';
+
+function switchView(view){
+  document.getElementById('viewNetwork').classList.toggle('active',view==='network');
+  document.getElementById('viewConsole').classList.toggle('active',view==='console');
+  var fb=document.querySelector('.filterbar');
+  var ct=document.querySelector('.content');
+  var cv=document.getElementById('consoleView');
+  if(fb)fb.style.display=view==='network'?'':'none';
+  if(ct)ct.style.display=view==='network'?'':'none';
+  if(cv)cv.classList.toggle('active',view==='console');
+}
+
+function filteredLogs(){
+  return allLogs.filter(function(l){
+    if(activeCL!=='ALL'&&l.level.toUpperCase()!==activeCL)return false;
+    if(activePlatform!=='ALL'&&(l.platform||'').toLowerCase()!==activePlatform)return false;
+    if(activeApp!=='ALL'&&l.appName!==activeApp)return false;
+    if(clSearchQ){var q=clSearchQ.toLowerCase();return l.messages.some(function(m){return String(m||'').toLowerCase().includes(q)})}
+    return true;
+  });
+}
+
+function renderLogs(){
+  var list=document.getElementById('consoleList'), items=filteredLogs();
+  if(items.length===0){list.innerHTML='<div class="no-console-res">No console logs match filters</div>';return}
+  var html='';
+  for(var i=0;i<items.length;i++){
+    var l=items[i];
+    var ts=new Date(l.timestamp).toLocaleTimeString();
+    var msgs='';
+    for(var j=0;j<l.messages.length;j++){
+      if(j>0)msgs+='\n';
+      msgs+=esc(String(l.messages[j]==null?'':l.messages[j]));
+    }
+    html+='<div class="console-item" data-cl-id="'+l.id+'">';
+    html+='<span class="console-level '+l.level+'">'+l.level.toUpperCase()+'</span>';
+    html+='<span class="console-time">'+ts+'</span>';
+    html+='<span class="console-app-badge" title="'+esc(l.appName||'')+'">'+esc(l.appName||'')+'</span>';
+    html+='<span class="console-msg">'+msgs+'</span>';
+    html+='<button class="cl-copy" onclick="copyConsoleMsg(this,'+l.id+')" title="Copy text">📋</button>';
+    html+='</div>';
+  }
+  list.innerHTML=html;
+  upCLCount();
+  updateAppFilter();
+  if(document.getElementById('autoScrollChk').checked){list.scrollTop=0}
+}
+
+function addLog(entry){
+  allLogs.unshift(entry);
+  if(allLogs.length>500)allLogs.pop();
+  updateAppFilter();
+  if(activeCL!=='ALL'&&entry.level.toUpperCase()!==activeCL)return;
+  if(activePlatform!=='ALL'&&(entry.platform||'').toLowerCase()!==activePlatform)return;
+  if(activeApp!=='ALL'&&entry.appName!==activeApp)return;
+  if(clSearchQ){
+    var q=clSearchQ.toLowerCase();
+    var found=false;
+    for(var i=0;i<entry.messages.length;i++){if(String(entry.messages[i]||'').toLowerCase().includes(q)){found=true;break}}
+    if(!found)return;
+  }
+  var list=document.getElementById('consoleList');
+  var ts=new Date(entry.timestamp).toLocaleTimeString();
+  var msgs='';
+  for(var j=0;j<entry.messages.length;j++){
+    if(j>0)msgs+='\n';
+    msgs+=esc(String(entry.messages[j]==null?'':entry.messages[j]));
+  }
+  var el=document.createElement('div');
+  el.innerHTML='<div class="console-item new-in" data-cl-id="'+entry.id+'">'+
+    '<span class="console-level '+entry.level+'">'+entry.level.toUpperCase()+'</span>'+
+    '<span class="console-time">'+ts+'</span>'+
+    '<span class="console-app-badge" title="'+esc(entry.appName||'')+'">'+esc(entry.appName||'')+'</span>'+
+    '<span class="console-msg">'+msgs+'</span>'+
+    '<button class="cl-copy" onclick="copyConsoleMsg(this,'+entry.id+')" title="Copy text">📋</button></div>';
+  list.insertBefore(el.firstChild,list.firstChild);
+  if(document.getElementById('autoScrollChk').checked){list.scrollTop=0}
+  upCLCount();
+}
+
+function upCLCount(){document.getElementById('clCount').textContent=allLogs.length}
+
+function getUniqueApps(){
+  var apps={};
+  for(var i=0;i<allLogs.length;i++){apps[allLogs[i].appName||'']=true}
+  return Object.keys(apps).filter(Boolean).sort();
+}
+
+function updateAppFilter(){
+  var sel=document.getElementById('appFilter');
+  if(!sel)return;
+  var cur=sel.value;
+  var apps=getUniqueApps();
+  sel.innerHTML='<option value="ALL">All Apps</option>';
+  for(var i=0;i<apps.length;i++){
+    var opt=document.createElement('option');
+    opt.value=apps[i];
+    opt.textContent=apps[i];
+    if(apps[i]===cur)opt.selected=true;
+    sel.appendChild(opt);
+  }
+}
+
+function filterApp(){
+  activeApp=document.getElementById('appFilter').value;
+  renderLogs();
+}
+
+function filterPlatform(btn){
+  document.querySelectorAll('#consoleView [data-clp]').forEach(function(b){b.classList.remove('on')});
+  btn.classList.add('on');
+  activePlatform=btn.dataset.clp;
+  renderLogs();
+}
+
+function filterCL(btn){
+  document.querySelectorAll('#consoleView .mf-btn[data-cl]').forEach(function(b){b.classList.remove('on')});
+  btn.classList.add('on');
+  activeCL=btn.dataset.cl;
+  renderLogs();
+}
+
+function applyCLFilter(){
+  clSearchQ=document.getElementById('clSearch').value;
+  renderLogs();
+}
+
+function clearConsole(){
+  allLogs=[];
+  document.getElementById('consoleList').innerHTML='<div class="console-empty">Console cleared</div>';
+  upCLCount();
+  fetch('/api/console/clear',{method:'POST'});
+}
+
+function copyConsoleMsg(btn,id){
+  var r=(allLogs||[]).find(function(l){return l.id===id});
+  if(!r){showToast('Log not found');return}
+  var txt=r.messages.join('\n');
+  navigator.clipboard.writeText(txt).then(function(){
+    btn.className='cl-copy copied';
+    btn.textContent='✓';
+    setTimeout(function(){btn.className='cl-copy';btn.textContent='📋'},1500);
+    showToast('Copied!');
+  }).catch(function(){showToast('Clipboard error')});
+}
+
+function toggleAutoScroll(){
+  var chk=document.getElementById('autoScrollChk');
+  chk.checked=!chk.checked;
+}
 </script>
 </body>
 </html>`;
@@ -1974,6 +2267,16 @@ const dashboardServer = http.createServer(async (req, res) => {
     const b = await readJSON();
     autoConnectEnabled = !!b.enabled;
     broadcastDevices();
+    res.writeHead(200); res.end('{}'); return;
+  }
+  if (p.pathname === '/api/console/ingest' && req.method === 'POST') {
+    const b = await readJSON();
+    const result = ingestConsoleLog(b, req);
+    res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(result)); return;
+  }
+  if (p.pathname === '/api/console/clear' && req.method === 'POST') {
+    consoleLogs.length = 0;
     res.writeHead(200); res.end('{}'); return;
   }
   res.writeHead(404); res.end('Not found');
