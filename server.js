@@ -2083,7 +2083,7 @@ function renderLogs(){
     var ts=new Date(l.timestamp).toLocaleTimeString();
     var msgs='';
     for(var j=0;j<l.messages.length;j++){
-      if(j>0)msgs+='\n';
+      if(j>0)msgs+='\\n';
       msgs+=esc(String(l.messages[j]==null?'':l.messages[j]));
     }
     html+='<div class="console-item" data-cl-id="'+l.id+'">';
@@ -2117,7 +2117,7 @@ function addLog(entry){
   var ts=new Date(entry.timestamp).toLocaleTimeString();
   var msgs='';
   for(var j=0;j<entry.messages.length;j++){
-    if(j>0)msgs+='\n';
+    if(j>0)msgs+='\\n';
     msgs+=esc(String(entry.messages[j]==null?'':entry.messages[j]));
   }
   var el=document.createElement('div');
@@ -2189,7 +2189,7 @@ function clearConsole(){
 function copyConsoleMsg(btn,id){
   var r=(allLogs||[]).find(function(l){return l.id===id});
   if(!r){showToast('Log not found');return}
-  var txt=r.messages.join('\n');
+  var txt=r.messages.join('\\n');
   navigator.clipboard.writeText(txt).then(function(){
     btn.className='cl-copy copied';
     btn.textContent='✓';
