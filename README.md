@@ -160,7 +160,7 @@ installRNNetInspect({
 React Native NetInspect can also capture `console.log`, `console.warn`, and `console.error` calls from your app and display them in the dashboard.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/twinedo/rn-netinspect/6411701027319155e3ef817dc7a42a0d76fe8b34/assets/readme/preview-console.png" alt="React Native NetInspect Console" width="100%" />
+  <img src="https://raw.githubusercontent.com/twinedo/rn-netinspect/main/assets/readme/preview-console.png" alt="React Native NetInspect Console" width="100%" />
 </p>
 
 ### How it works
